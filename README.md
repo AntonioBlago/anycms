@@ -68,11 +68,14 @@ Powered by [Visibly AI](https://app.visibly-ai.com). Free account, no card.
 3. **Settings > AI Automation**: paste the secret and the API key. The page
    shows the exact webhook URL to copy back into Visibly.
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com?referralCode=YKp8kE)
+<a href="https://railway.com?referralCode=YKp8kE"><img src="https://railway.com/button.svg" alt="Deploy on Railway" height="40"></a>
+<a href="https://railway.com?referralCode=YKp8kE"><img src="https://img.shields.io/badge/Railway-%2420%20free%20credit-6c47ff?logo=railway&logoColor=white&style=for-the-badge&labelColor=0B0D0E" alt="Railway: $20 free credit" height="40"></a>
 
-**Astro, Next.js, Flask**, one Railway project each. The button opens Railway
-(referral link); it does not deploy for you, because four apps live in this
-repo and a one-click template covers exactly one. Pick yours in step 2:
+**Astro, Next.js, Flask**, one Railway project each. Both buttons are the same
+referral link, and signing up through it puts **$20 of Railway credit** on the
+new account, roughly a free month on the Pro tier. Neither button deploys for
+you: four apps live in this repo, and a one-click template covers exactly one.
+Pick yours in step 2:
 
 1. New project from this repo.
 2. Set `RAILWAY_DOCKERFILE_PATH` to `apps/<stack>/Dockerfile`.
