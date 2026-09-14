@@ -15,7 +15,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV CONTENT_DIR=/data/content
 # `output: standalone` legt einen fertigen Server samt noetiger Module ab.
+# server.js landet in der WURZEL des standalone-Ordners, nicht unter
+# apps/nextjs/: dieses Repo ist kein npm-Workspace, also erkennt Next.js keine
+# Monorepo-Wurzel. Der E2E-Test faengt es, falls sich das je aendert.
 COPY --from=build /repo/apps/nextjs/.next/standalone ./
-COPY --from=build /repo/apps/nextjs/.next/static ./apps/nextjs/.next/static
+COPY --from=build /repo/apps/nextjs/.next/static ./.next/static
 EXPOSE 8080
-CMD ["sh", "-c", "HOSTNAME=0.0.0.0 PORT=${PORT:-8080} node apps/nextjs/server.js"]
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 PORT=${PORT:-8080} node server.js"]

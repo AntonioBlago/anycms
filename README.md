@@ -99,8 +99,10 @@ gegen einen gefälschten Visibly-Server schickt und prüft, dass der Artikel
 danach auf der Seite steht:
 
 ```bash
-cd apps/astro && npm run build && node test/e2e.mjs
-cd apps/flask && python test_e2e.py
+cd packages/connector-node && npm test          # 13 Unit-Tests
+cd apps/astro   && npm run build && node test/e2e.mjs
+cd apps/nextjs  && npm run build && node test/e2e.mjs
+cd apps/flask   && python test_e2e.py
 ```
 
 ## Du hast schon ein CMS?
