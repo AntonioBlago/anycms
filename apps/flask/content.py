@@ -1,12 +1,11 @@
-"""Content layer: everything the pages need from the articles on disk.
+"""Content layer: everything the pages need, on top of whatever store is active.
 
-Articles are Markdown files written by the connector. This module turns them
-into the shapes the blog renders: lists, filters, pagination, reading time,
-related posts and a search index.
+Reading, rendering and grouping live here; where the articles physically are
+(Markdown files or Postgres) lives in ``store.py``. The pages should not have
+to know which one is running.
 
 Deliberately no cache. Articles arrive at runtime via webhook; a cache would
-have to be invalidated by exactly the code path that must stay simple, and a
-blog of this size reads its directory in single-digit milliseconds.
+have to be invalidated by exactly the code path that must stay simple.
 """
 from __future__ import annotations
 
@@ -15,11 +14,11 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 
 import markdown
 
-CONTENT_DIR = Path(os.environ.get("CONTENT_DIR", "/data/content"))
+from store import SLUG_RE, get_store, sichere_teile  # noqa: F401  (re-export)
+
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8080").rstrip("/")
 SITE_NAME = os.environ.get("SITE_NAME", "Blog")
 SITE_DESCRIPTION = os.environ.get(
@@ -29,14 +28,6 @@ PER_PAGE = int(os.environ.get("POSTS_PER_PAGE", "10"))
 
 #: Words per minute for an average reader of technical prose.
 WPM = 220
-
-#: Slug und Pfadteile kommen aus einem fremden System und landen in einem
-#: Dateipfad: ohne diese Pruefung schriebe ein ``../`` ausserhalb des
-#: Verzeichnisses, und ein Aufruf laese ausserhalb.
-SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$", re.IGNORECASE)
-
-_FRONTMATTER = re.compile(r"^---\r?\n(.*?)\r?\n---\r?\n?", re.S)
-_TAGS = re.compile(r'"([^"]*)"')
 
 
 @dataclass
@@ -59,11 +50,6 @@ class Post:
         return f"{SITE_URL}/{self.url_pfad}"
 
 
-def sichere_teile(pfad: str) -> list[str]:
-    """Pfadteile, die alle der Slug-Regel genuegen; sonst leer."""
-    teile = [t for t in pfad.split("/") if t]
-    return teile if teile and all(SLUG_RE.match(t) for t in teile) else []
-
 
 def _text_von(html: str) -> str:
     ohne = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
@@ -85,65 +71,40 @@ def heading_id(text: str) -> str:
     return re.sub(r"^-+|-+$", "", re.sub(r"[^a-z0-9]+", "-", s))[:80]
 
 
-def _kopf_und_rumpf(roh: str) -> tuple[dict[str, str], str]:
-    treffer = _FRONTMATTER.match(roh)
-    if not treffer:
-        return {}, roh
-    kopf: dict[str, str] = {}
-    for zeile in treffer.group(1).splitlines():
-        m = re.match(r"^(\w+):\s*(.*)$", zeile)
-        if m:
-            kopf[m.group(1)] = m.group(2).strip().strip('"').replace('\\"', '"')
-    return kopf, roh[treffer.end():]
 
 
-def _tags_lesen(roh: str | None) -> list[str]:
-    """Eine Frontmatter-Liste ``["a", "b"]`` lesen. Unlesbares ergibt leer."""
-    if not roh:
-        return []
-    return [t for t in _TAGS.findall(roh) if t.strip()]
 
-
-def _post_aus_datei(datei: Path) -> Post:
-    roh = datei.read_text(encoding="utf-8")
-    kopf, rumpf = _kopf_und_rumpf(roh)
-    rel = datei.relative_to(CONTENT_DIR).with_suffix("")
-    teile = rel.as_posix().split("/")
+def _post(daten: dict) -> Post:
+    """Eine Store-Zeile in einen Post, inklusive Lesezeit."""
     return Post(
-        slug=teile[-1],
-        url_pfad=rel.as_posix(),
-        title=kopf.get("title") or teile[-1],
-        description=kopf.get("description", ""),
-        category=kopf.get("category") or (teile[0] if len(teile) > 1 else "blog"),
-        tags=_tags_lesen(kopf.get("tags")),
-        pub_date=kopf.get("pubDate", ""),
-        updated_date=kopf.get("updatedDate") or kopf.get("pubDate", ""),
-        lang=kopf.get("lang", "de"),
-        fmt=kopf.get("format", "html"),
-        reading_minutes=_lesezeit(_text_von(rumpf)),
-        body=rumpf,
+        slug=daten["slug"],
+        url_pfad=daten["url_pfad"],
+        title=daten["title"],
+        description=daten["description"],
+        category=daten["category"],
+        tags=daten["tags"],
+        pub_date=daten["pub_date"],
+        updated_date=daten["updated_date"],
+        lang=daten["lang"],
+        fmt=daten["format"],
+        reading_minutes=_lesezeit(_text_von(daten["body"])),
+        body=daten["body"],
     )
 
 
 def alle_posts() -> list[Post]:
     """Alle Beitraege, neueste zuerst."""
-    if not CONTENT_DIR.exists():
-        return []  # noch nichts empfangen ist kein Fehler
-    posts = [_post_aus_datei(d) for d in CONTENT_DIR.rglob("*.md")]
-    return sorted(posts, key=lambda p: p.pub_date, reverse=True)
+    return [_post(d) for d in get_store().liste()]
 
 
 def post_lesen(url_pfad: str) -> tuple[Post, str, list[dict]] | None:
     """Einen Beitrag mit gerendertem HTML und Inhaltsverzeichnis."""
-    teile = sichere_teile(url_pfad)
-    if not teile:
-        return None
-    datei = CONTENT_DIR.joinpath(*teile[:-1], f"{teile[-1]}.md")
-    if not datei.is_file():
+    daten = get_store().lesen(url_pfad)
+    if daten is None:
         return None
 
-    post = _post_aus_datei(datei)
-    # Visibly liefert je nach Cluster Markdown ODER HTML; das Frontmatter sagt
+    post = _post(daten)
+    # Visibly liefert je nach Cluster Markdown ODER HTML; das Format sagt
     # welches. HTML durch einen Markdown-Parser zu schicken, zerlegt es.
     html = (
         markdown.markdown(post.body, extensions=["extra", "sane_lists"])
@@ -163,6 +124,7 @@ def post_lesen(url_pfad: str) -> tuple[Post, str, list[dict]] | None:
 
     html = re.sub(r"<h([23])([^>]*)>(.*?)</h\1>", _anker, html, flags=re.S | re.I)
     return post, html, toc
+
 
 
 def verwandte(alle: list[Post], aktuell: Post, limit: int = 3) -> list[Post]:

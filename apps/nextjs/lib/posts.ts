@@ -102,7 +102,6 @@ export async function getPost(urlPfad: string): Promise<PostDetail | null> {
     category: kopf.category ?? teile[0] ?? 'blog',
     tags: parseTags(kopf.tags),
     format: kopf.format ?? 'html',
-    pfad: '',
     urlPfad,
     readingMinutes: readingMinutes(textOf(eintrag.inhalt)),
     html,

@@ -2,3 +2,6 @@ flask>=3.0
 markdown>=3.7
 ai-content-autopilot>=1.1.0
 gunicorn>=23.0
+
+# Nur fuer ARTICLE_STORE=postgres; mit Dateien nicht noetig.
+psycopg[binary]>=3.2

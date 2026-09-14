@@ -7,15 +7,15 @@ point: Visibly waits 10 seconds for the response and does NOT retry when it
 times out. Answering only after the article is written means being delivered to
 repeatedly and doing the same work several times.
 
-Articles live as Markdown files under ``CONTENT_DIR``. **That directory must be
-a mounted volume on Railway**, otherwise the articles are gone after the next
-deploy.
+Articles live wherever ``store.py`` puts them: Markdown files under
+``CONTENT_DIR`` by default, or Postgres when ``DATABASE_URL`` is set. With
+files on Railway, **the directory must be a mounted volume**, otherwise the
+articles are gone after the next deploy.
 """
 from __future__ import annotations
 
 import os
 from datetime import UTC, datetime
-from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
 from ai_content_autopilot import configure_visibly, contentpilot_webhook_bp
@@ -23,68 +23,20 @@ from ai_content_autopilot.client import VisiblyClient
 from flask import Flask, Response, abort, jsonify, render_template, request
 
 import content as inhalt
-from content import (
-    CONTENT_DIR,
-    SITE_DESCRIPTION,
-    SITE_NAME,
-    SITE_URL,
-    SLUG_RE,
-)
+from content import SITE_DESCRIPTION, SITE_NAME, SITE_URL
+from store import get_store
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Empfang
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _yaml_wert(wert: object) -> str:
-    """Frontmatter maskieren: ein Doppelpunkt im Titel zerlegt sonst das YAML."""
-    s = "" if wert is None else str(wert)
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
 def speichere_artikel(artikel: dict) -> str | None:
-    """Artikel als Markdown ablegen und die oeffentliche URL zurueckgeben.
+    """Artikel ablegen und die oeffentliche URL zurueckgeben.
 
-    Der Dateiname ist der Slug: ein zweiter Aufruf fuer denselben Artikel
-    ueberschreibt, er dupliziert nicht.
+    Wohin, entscheidet ``store.get_store()``: Markdown-Dateien oder Postgres.
     """
-    slug = (artikel.get("slug") or "").strip()
-    if not SLUG_RE.match(slug):
-        print(f"[visibly] Slug abgelehnt: {slug!r}")
-        return None
-
-    praefix = (artikel.get("url_prefix") or "/blog/").strip("/")
-    teile = [t for t in praefix.split("/") if t and SLUG_RE.match(t)]
-    ordner = CONTENT_DIR.joinpath(*teile)
-    ordner.mkdir(parents=True, exist_ok=True)
-
-    text = (artikel.get("content_markdown") or "").strip() or artikel.get("content_html") or ""
-    jetzt = datetime.now(UTC).isoformat()
-    tags = [k for k in (artikel.get("keywords") or []) if isinstance(k, str) and k.strip()]
-
-    kopf = "\n".join(
-        [
-            "---",
-            f"title: {_yaml_wert(artikel.get('title'))}",
-            f"description: {_yaml_wert(artikel.get('meta_description'))}",
-            f"slug: {_yaml_wert(slug)}",
-            # Der Cluster ist die Kategorie: beides ist dieselbe Idee.
-            f"category: {_yaml_wert(teile[0] if teile else 'blog')}",
-            f"pubDate: {_yaml_wert(artikel.get('created_at') or jetzt)}",
-            f"updatedDate: {_yaml_wert(artikel.get('updated_at') or jetzt)}",
-            f"lang: {_yaml_wert(artikel.get('content_language') or 'de')}",
-            f"visiblyArticleId: {artikel.get('id')}",
-            f"visiblyRevision: {artikel.get('revision') or 1}",
-            f"format: {_yaml_wert(artikel.get('content_format') or 'html')}",
-            # Tags stehen immer da, auch leer: ein fehlender Schluessel und eine
-            # leere Liste sind zwei verschiedene Aussagen.
-            "tags: [" + ", ".join(_yaml_wert(t) for t in tags) + "]",
-            "---",
-            "",
-        ]
-    )
-    (ordner / f"{slug}.md").write_text(kopf + text + "\n", encoding="utf-8")
-    return f"{SITE_URL}/{'/'.join([*teile, slug])}"
+    return get_store().speichern(artikel, SITE_URL)
 
 
 def _handler(artikel: dict) -> bool:

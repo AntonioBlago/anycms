@@ -86,6 +86,9 @@ Powered by [Visibly AI](https://app.visibly-ai.com). Free account, no card.
 | `CONTENT_DIR` | no | Article directory (Next.js, Flask). Default `/data/content` |
 | `POSTS_DIR` | no | Article directory (Astro). Default `/data/posts` |
 | `POSTS_PER_PAGE` | no | Flask only. Default 10 |
+| `DATABASE_URL` | no | Set it and articles go to Postgres instead of files |
+| `ARTICLE_STORE` | no | `files` or `postgres`, overrides the line above |
+| `ARTICLE_TABLE` | no | Postgres table name. Default `anycms_articles` |
 | `VISIBLY_BASE_URL` | no | Only for self-hosted installations |
 
 Flask also reads `CONTENTPILOT_WEBHOOK_SECRET`, the name its SDK expects. Set
@@ -154,12 +157,43 @@ verified across Node, PHP and Python including non-ASCII payloads.
 
 ## Where articles are stored
 
-As Markdown files with frontmatter, not in a database. Astro and Next.js read
-that natively, humans can look at it, there is no schema to migrate, and on
-Railway a volume is enough instead of a second service. WordPress writes real
-posts, because that is what WordPress is.
+Your choice, decided by one environment variable.
 
-Prefer a database? Swap one function call. The contract does not care.
+| | Files (default) | Postgres |
+|---|---|---|
+| **How** | Markdown with frontmatter, one file per article | One table, schema created on first run |
+| **Set up** | Mount a volume at `/data` | Set `DATABASE_URL` |
+| **Pick it when** | You want readable, editable, git-friendly content | You run several instances, or want articles in the same backup as your data |
+| **Catch** | A volume attaches to exactly one service | Articles are no longer plain files |
+
+```bash
+# Files (default): nothing to configure beyond the volume
+CONTENT_DIR=/data/content
+
+# Postgres: on Railway, adding a Postgres service sets this for you
+DATABASE_URL=postgres://...
+
+# Override, if a platform sets DATABASE_URL but you want files anyway
+ARTICLE_STORE=files
+```
+
+The file format is the one Hugo, Jekyll, Eleventy and Astro content
+collections use. Ghost, by the way, does not: it has a Markdown editor but
+stores posts in MySQL.
+
+**WordPress ignores both.** It writes real WordPress posts into the database it
+already has, because that is what WordPress is.
+
+**Astro uses files only.** Its template reads MDX from disk for search, RSS and
+the admin UI; pointing that at Postgres would mean rewriting the template
+rather than configuring it.
+
+Both backends are held to the same behaviour by a test that runs the identical
+sequence against each and compares the results
+([`apps/flask/test_store.py`](apps/flask/test_store.py)). That test found a
+real bug on its first run: the file parser mangled a title ending in a quoted
+word, because stripping the outer quotes before unescaping eats the escaped
+one.
 
 The Astro starter is the
 [astro-seo-blog-template](https://github.com/kevingabeci/astro-seo-blog-template)
@@ -202,6 +236,18 @@ cd apps/flask     && pip install -r requirements.txt && python test_e2e.py
 cd apps/wordpress && php test_signature.php
 ```
 
+Against Postgres as well, with a throwaway container:
+
+```bash
+docker run -d --name anycms-pg -e POSTGRES_PASSWORD=testpw \
+  -e POSTGRES_DB=anycms_test -p 55432:5432 postgres:16-alpine
+export PG=postgres://postgres:testpw@127.0.0.1:55432/anycms_test
+
+cd packages/ai-automation-connector && TEST_DATABASE_URL=$PG npm run test:pg
+cd apps/flask  && TEST_DATABASE_URL=$PG python test_store.py
+cd apps/nextjs && DATABASE_URL=$PG node test/e2e.mjs
+```
+
 Each end-to-end test runs the real server, sends a signed webhook, answers from
 a fake Visibly, and asserts that the response arrives in milliseconds, the
 article lands on the page, and the URL is reported back. They also check the
@@ -215,6 +261,8 @@ That is not decoration. These tests caught, on their first run:
 - a **wrong start path** in the Next.js Dockerfile: green build, dead container
 - **missing CSS** in the Next.js standalone build: correct HTML, unstyled page
 - a **500 error** in Flask from a Jinja macro imported without context
+- a **mangled title** in the file parser, found only by running the same
+  sequence against Postgres and comparing
 
 ---
 

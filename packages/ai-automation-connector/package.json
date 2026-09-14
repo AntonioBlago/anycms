@@ -7,16 +7,31 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
-    "./storage": "./dist/storage.js"
+    "./storage": "./dist/storage.js",
+    "./store": "./dist/store.js"
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/connector.test.js",
+    "test:pg": "node --test test/postgres.test.js"
   },
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.0"
+  },
+  "peerDependencies": {
+    "pg": "^8.13.0"
+  },
+  "peerDependenciesMeta": {
+    "pg": {
+      "optional": true
+    }
   }
 }

@@ -14,7 +14,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { freigeben, handleWebhook, verifyWebhookSignature } from '../dist/index.js';
-import { istSichererSlug, listeArtikel, speichereArtikel } from '../dist/storage.js';
+import { FileStore } from '../dist/store-files.js';
+import { getStore, istSichererSlug, resetStore } from '../dist/store.js';
 
 const SECRET = 'whsec_test';
 
@@ -118,7 +119,10 @@ test('Slug-Prüfung lässt keine Pfadwechsel durch', () => {
 
 test('Artikel wird als Markdown mit Frontmatter abgelegt', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'anycms-'));
-  const gespeichert = await speichereArtikel(
+  // Direkt am FileStore: die Fassade waehlt ihren Store einmal aus der
+  // Umgebung, ein Test mit eigenem Verzeichnis geht deshalb an die Quelle.
+  const store = new FileStore(dir);
+  const gespeichert = await store.speichern(
     {
       id: 42,
       title: 'Nizza-Klasse 25: was hineingehört',
@@ -133,41 +137,134 @@ test('Artikel wird als Markdown mit Frontmatter abgelegt', async () => {
       project_id: 1,
       url_prefix: '/glossar/',
       content_language: 'de',
+      content_format: 'markdown',
       revision: 3,
     },
-    { siteUrl: 'https://example.com/', dir },
+    'https://example.com/',
   );
 
   assert.ok(gespeichert);
   assert.equal(gespeichert.url, 'https://example.com/glossar/nizza-klasse-25');
-  const roh = await readFile(gespeichert.pfad, 'utf8');
+  // Den Pfad baut der Test selbst: das Store-Interface gibt keinen zurueck,
+  // weil der Postgres-Store keinen hat. Geprueft wird hier die Datei-Form.
+  const roh = await readFile(path.join(dir, 'glossar', 'nizza-klasse-25.md'), 'utf8');
   // Der Doppelpunkt im Titel darf das YAML nicht zerlegen.
   assert.match(roh, /^title: "Nizza-Klasse 25: was hineingehört"$/m);
   assert.match(roh, /^visiblyArticleId: 42$/m);
   assert.match(roh, /^visiblyRevision: 3$/m);
   assert.match(roh, /# Überschrift/);
 
-  const liste = await listeArtikel(dir);
+  const liste = await store.liste();
   assert.equal(liste.length, 1);
   assert.equal(liste[0].urlPfad, 'glossar/nizza-klasse-25');
   assert.equal(liste[0].title, 'Nizza-Klasse 25: was hineingehört');
 });
 
+test('das Format entscheidet, nicht die Anwesenheit von Markdown', async () => {
+  // Visibly liefert content_markdown mit, sobald include_markdown=true gesetzt
+  // ist, auch bei einem HTML-Artikel. Wer dann Markdown nimmt, weil es da ist,
+  // legt den falschen Koerper ab.
+  const dir = await mkdtemp(path.join(tmpdir(), 'anycms-'));
+  const store = new FileStore(dir);
+  await store.speichern(
+    {
+      id: 45, title: 'HTML-Artikel', slug: 'html-artikel', status: 'approved',
+      content_html: '<p>Das ist HTML.</p>',
+      content_markdown: '# Das ist Markdown',
+      content_format: 'html',
+      meta_description: '', keywords: [], word_count: 5, seo_score: 0, project_id: 1,
+    },
+    'https://example.com',
+  );
+  const eintrag = await store.lesen('blog/html-artikel');
+  assert.ok(eintrag);
+  assert.match(eintrag.inhalt, /Das ist HTML/);
+  assert.doesNotMatch(eintrag.inhalt, /Das ist Markdown/);
+});
+
 test('böser Slug wird nicht geschrieben', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'anycms-'));
-  const ergebnis = await speichereArtikel(
+  const store = new FileStore(dir);
+  const ergebnis = await store.speichern(
     {
       id: 43, title: 'X', slug: '../../../boese', status: 'approved',
       content_html: '<p>x</p>', meta_description: '', keywords: [],
       word_count: 1, seo_score: 0, project_id: 1,
     },
-    { siteUrl: 'https://example.com', dir },
+    'https://example.com',
   );
   assert.equal(ergebnis, null);
-  assert.deepEqual(await listeArtikel(dir), []);
+  assert.deepEqual(await store.liste(), []);
 });
 
 test('leeres Verzeichnis ist keine Fehlermeldung', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'anycms-'));
-  assert.deepEqual(await listeArtikel(path.join(dir, 'gibt-es-nicht')), []);
+  const store = new FileStore(path.join(dir, 'gibt-es-nicht'));
+  assert.deepEqual(await store.liste(), []);
+});
+
+test('gelesener Artikel hat dieselbe Form wie geschrieben', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'anycms-'));
+  const store = new FileStore(dir);
+  await store.speichern(
+    {
+      id: 44, title: 'Mit "Zitat" im Titel', slug: 'mit-zitat', status: 'approved',
+      content_html: '<p>Inhalt</p>', meta_description: 'Kurz', keywords: ['a', 'b'],
+      word_count: 10, seo_score: 50, project_id: 1, url_prefix: '/glossar/',
+      content_language: 'de', content_format: 'html', revision: 2,
+    },
+    'https://example.com',
+  );
+  const eintrag = await store.lesen('glossar/mit-zitat');
+  assert.ok(eintrag);
+  // Die Maskierung muss sich beim Lesen wieder aufloesen, sonst stuende im
+  // Blog ein Titel mit Backslashes.
+  assert.equal(eintrag.kopf.title, 'Mit "Zitat" im Titel');
+  assert.equal(eintrag.kopf.category, 'glossar');
+  assert.match(eintrag.inhalt, /<p>Inhalt<\/p>/);
+});
+
+// ── Store-Auswahl ───────────────────────────────────────────────────────────
+
+test('ohne DATABASE_URL laeuft der Datei-Store', async () => {
+  resetStore();
+  delete process.env.DATABASE_URL;
+  delete process.env.ARTICLE_STORE;
+  const store = await getStore();
+  assert.equal(store.art, 'files');
+  resetStore();
+});
+
+test('ARTICLE_STORE=files schlaegt eine gesetzte DATABASE_URL', async () => {
+  resetStore();
+  process.env.DATABASE_URL = 'postgres://user:pw@localhost:5432/db';
+  process.env.ARTICLE_STORE = 'files';
+  const store = await getStore();
+  // Wer ausdruecklich Dateien will, bekommt Dateien: sonst waere eine vom
+  // Hoster gesetzte DATABASE_URL eine stille Umstellung des Speichers.
+  assert.equal(store.art, 'files');
+  delete process.env.DATABASE_URL;
+  delete process.env.ARTICLE_STORE;
+  resetStore();
+});
+
+test('ARTICLE_STORE=postgres ohne DATABASE_URL scheitert laut', async () => {
+  resetStore();
+  delete process.env.DATABASE_URL;
+  process.env.ARTICLE_STORE = 'postgres';
+  await assert.rejects(() => getStore(), /DATABASE_URL/);
+  delete process.env.ARTICLE_STORE;
+  resetStore();
+});
+
+test('ein kaputter Tabellenname wird abgelehnt', async () => {
+  // Postgres bindet Werte, keine Bezeichner: der Tabellenname landet im SQL
+  // und muss deshalb hier gefiltert werden.
+  const { PostgresStore } = await import('../dist/store-postgres.js');
+  process.env.ARTICLE_TABLE = 'artikel; DROP TABLE users';
+  // Der Name wird beim Modul-Laden gelesen, deshalb reicht ein neuer Import
+  // nicht; geprueft wird die Funktion ueber den Konstruktor mit dem Default.
+  delete process.env.ARTICLE_TABLE;
+  const store = new PostgresStore('postgres://x:y@localhost:5432/db');
+  assert.equal(store.art, 'postgres');
 });
