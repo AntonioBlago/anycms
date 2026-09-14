@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block inhalt %}
+  <h1>Blog</h1>
+  {% if not artikel %}
+    <p class="leer">
+      Noch keine Artikel. Sobald du in Visibly einen Artikel freigibst, landet er hier.
+    </p>
+  {% else %}
+    {% for a in artikel %}
+      <article>
+        <h2><a href="/{{ a.urlPfad }}">{{ a.title }}</a></h2>
+        {% if a.description %}<p>{{ a.description }}</p>{% endif %}
+        {% if a.pubDate %}<time datetime="{{ a.pubDate }}">{{ a.pubDate[:10] }}</time>{% endif %}
+      </article>
+    {% endfor %}
+  {% endif %}
+{% endblock %}

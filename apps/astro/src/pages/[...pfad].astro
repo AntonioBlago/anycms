@@ -1,0 +1,24 @@
+---
+import { leseArtikel } from '@anycms/visibly-connector/storage';
+import { marked } from 'marked';
+import Base from '../layouts/Base.astro';
+
+export const prerender = false;
+
+const { pfad } = Astro.params;
+const eintrag = await leseArtikel(pfad ?? '');
+if (!eintrag) return new Response(null, { status: 404 });
+
+// Visibly liefert je nach Cluster Markdown ODER HTML; das Format steht im
+// Frontmatter. HTML wird durchgereicht, Markdown vorher gerendert.
+const html = eintrag.kopf.format === 'markdown'
+  ? await marked.parse(eintrag.inhalt)
+  : eintrag.inhalt;
+---
+<Base title={eintrag.kopf.title ?? 'Artikel'} description={eintrag.kopf.description}>
+  <h1>{eintrag.kopf.title}</h1>
+  {eintrag.kopf.pubDate && (
+    <time datetime={eintrag.kopf.pubDate}>{eintrag.kopf.pubDate.slice(0, 10)}</time>
+  )}
+  <div set:html={html} />
+</Base>

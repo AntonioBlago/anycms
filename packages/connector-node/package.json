@@ -1,0 +1,22 @@
+{
+  "name": "@anycms/visibly-connector",
+  "version": "1.0.0",
+  "description": "Visibly Content Autopilot connector for Node-based CMS (webhook verification, pull API, markdown storage)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./storage": "./dist/storage.js"
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

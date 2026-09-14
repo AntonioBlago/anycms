@@ -1,0 +1,22 @@
+{
+  "name": "@anycms/astro",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "start": "HOST=0.0.0.0 PORT=${PORT:-8080} node ./dist/server/entry.mjs",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@anycms/visibly-connector": "file:../../packages/connector-node",
+    "@astrojs/node": "^9.4.3",
+    "astro": "^5.13.5",
+    "marked": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
