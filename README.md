@@ -47,7 +47,7 @@ Projekt → Content → CMS-Verbindungen → neue Verbindung vom Typ **Webhook**
 
 - **Webhook-URL:** `https://deine-domain.de/api/visibly/webhook`
   (Flask: `https://deine-domain.de/webhooks/visibly`)
-- **Secret:** frei wählbar, gleich gleich in die Umgebung eintragen
+- **Secret:** frei wählbar, denselben Wert in die Umgebung eintragen
 - **Events:** `article.approved`, `article.updated`
 
 Dazu einen API-Key unter Einstellungen → API-Key erzeugen (`lc_…`), oder im
@@ -64,7 +64,7 @@ Projekt einen projektgebundenen Key (`cp_…`).
 | `VISIBLY_BASE_URL` | nein | Nur für abweichende Installationen |
 
 Flask liest zusätzlich `CONTENTPILOT_WEBHOOK_SECRET` (der Name, den das SDK
-erwartet) — setze beide auf denselben Wert.
+erwartet). Setze beide auf denselben Wert.
 
 ### 3. Auf Railway
 
@@ -110,12 +110,12 @@ cd apps/flask   && python test_e2e.py
 Der Connector ist bewusst eine einzige Datei. Kopiere sie in dein Projekt und
 tausche das Ablegen gegen deinen eigenen Speicher:
 
-- **Astro:** [`apps/astro/src/pages/api/visibly/webhook.ts`](apps/astro/src/pages/api/visibly/webhook.ts)
-  — funktioniert unverändert in jedem Astro-Projekt mit `output: 'server'`,
+- **Astro:** [`apps/astro/src/pages/api/visibly/webhook.ts`](apps/astro/src/pages/api/visibly/webhook.ts):
+  funktioniert unverändert in jedem Astro-Projekt mit `output: 'server'`,
   auch in fertigen Vorlagen wie
   [astro-seo-blog-template](https://github.com/kevingabeci/astro-seo-blog-template).
-- **Next.js:** [`apps/nextjs/app/api/visibly/webhook/route.ts`](apps/nextjs/app/api/visibly/webhook/route.ts)
-  — Node-Runtime ist Pflicht, Edge kann keine Dateien schreiben.
+- **Next.js:** [`apps/nextjs/app/api/visibly/webhook/route.ts`](apps/nextjs/app/api/visibly/webhook/route.ts):
+  Node-Runtime ist Pflicht, Edge kann keine Dateien schreiben.
 - **Flask/Django/FastAPI:** `pip install ai-content-autopilot` und den
   Blueprint registrieren, siehe [`apps/flask/app.py`](apps/flask/app.py).
 
