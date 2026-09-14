@@ -10,7 +10,7 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@anycms/visibly-connector": "file:../../packages/connector-node",
+    "@anycms/ai-automation-connector": "file:../../packages/ai-automation-connector",
     "@astrojs/node": "^9.4.3",
     "astro": "^5.13.5",
     "marked": "^15.0.0"

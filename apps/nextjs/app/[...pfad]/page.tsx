@@ -1,4 +1,4 @@
-import { leseArtikel } from '@anycms/visibly-connector/storage';
+import { leseArtikel } from '@anycms/ai-automation-connector/storage';
 import { marked } from 'marked';
 import { notFound } from 'next/navigation';
 

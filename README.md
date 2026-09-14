@@ -1,140 +1,181 @@
-# anycms
+# AI Automation Connector
 
-Blog-Starter, die Artikel aus dem [Visibly Content Autopilot](https://app.visibly-ai.com)
-empfangen. Drei Frameworks, ein Vertrag, jeder auf Railway deploybar.
+**Your CMS, writing itself.** Connect any content system to an AI content
+pipeline: articles get researched, written, and delivered to your site
+automatically. Pick your stack, deploy, paste two keys, done.
 
-| Starter | Stack | Nimm den, wenn … |
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy?template=https://github.com/AntonioBlago/anycms)
+
+| Your stack | Where to start | Setup |
 |---|---|---|
-| [`apps/astro`](apps/astro) | Astro 5 (SSR, Node-Adapter) | du eine schnelle, inhaltslastige Seite willst |
-| [`apps/nextjs`](apps/nextjs) | Next.js 15 (App Router) | du React ohnehin einsetzt |
-| [`apps/flask`](apps/flask) | Flask 3 + [`ai-content-autopilot`](https://pypi.org/project/ai-content-autopilot/) | dein Team Python schreibt |
+| **WordPress** | [`apps/wordpress`](apps/wordpress) | Upload one PHP file, paste two keys |
+| **Astro** | [`apps/astro`](apps/astro) | Deploy, or copy one file into your project |
+| **Next.js** | [`apps/nextjs`](apps/nextjs) | Deploy, or copy one file into your project |
+| **Flask / Django / FastAPI** | [`apps/flask`](apps/flask) | `pip install ai-content-autopilot` |
+| **Anything else** | [`docs/CONTRACT.md`](docs/CONTRACT.md) | ~50 lines in any language |
 
-Alle drei tun dasselbe: Webhook entgegennehmen, Artikel selbst abholen, als
-Markdown ablegen, Blog rendern, die veröffentlichte URL zurückmelden.
+Powered by [Visibly AI](https://app.visibly-ai.com). Free account, no card.
 
-## Wie es funktioniert
+---
+
+## What actually happens
 
 ```
-Visibly: Artikel freigegeben
+Visibly: article approved
         │
-        │  POST /api/visibly/webhook   (HMAC-SHA256 signiert)
+        │  POST /webhook   (HMAC-SHA256 signed)
         ▼
-   [1] Signatur prüfen                 ← falsch? 401, Ende
-   [2] HTTP 202 "accepted" antworten   ← SOFORT, ohne zu arbeiten
+   [1] verify signature          <- wrong? 401, done
+   [2] answer 202 "accepted"     <- IMMEDIATELY, before doing any work
         │
-        └── im Hintergrund:
-            [3] GET /api/v1/articles/{id}      Artikel holen
-            [4] als Markdown ablegen            CONTENT_DIR (Volume!)
-            [5] POST /articles/{id}/confirm     URL zurückmelden
+        └── in the background:
+            [3] GET /api/v1/articles/{id}    fetch the article
+            [4] write it into your CMS
+            [5] POST /articles/{id}/confirm  report the live URL back
 ```
 
-**Schritt 2 ist der entscheidende.** Visibly wartet 10 Sekunden auf die Antwort
-und wiederholt die Zustellung **nicht**, wenn sie ausbleibt: der Request war ja
-schon da. Wer erst antwortet, wenn der Artikel geschrieben ist, wird mehrfach
-beliefert und macht dieselbe Arbeit mehrfach. Bei einem CMS, das die Artikel
-übersetzt, ist das die mehrfache Rechnung. Genau dieser Fehler wurde am
-14.09.2026 in Produktion gemessen: drei Zustellversuche für einen Artikel
-wurden zu drei Übersetzungsläufen.
+**Step 2 is the one everybody gets wrong.** Visibly waits 10 seconds for your
+response and does **not** retry when it times out, because the request already
+reached you. Answer only after the article is written and you get delivered to
+repeatedly, doing the same work every time. For a CMS that translates incoming
+articles, that is the same bill several times over.
 
-Erst **Schritt 5** macht die URL in Visibly bekannt. Ohne sie kann Visibly den
-Beitrag später nicht gezielt aktualisieren.
+This is not hypothetical. Measured in production on 2026-09-14: three delivery
+attempts for one article turned into three LLM translation runs. Every
+connector here acknowledges first and works afterwards, with a lock so a
+repeated delivery is skipped instead of processed twice.
 
-## Einrichten
+**Step 5 is what makes updates possible.** Until you report the URL back,
+Visibly cannot target that post for later edits.
 
-### 1. In Visibly
+---
 
-Projekt → Content → CMS-Verbindungen → neue Verbindung vom Typ **Webhook**:
+## Get running
 
-- **Webhook-URL:** `https://deine-domain.de/api/visibly/webhook`
-  (Flask: `https://deine-domain.de/webhooks/visibly`)
-- **Secret:** frei wählbar, denselben Wert in die Umgebung eintragen
-- **Events:** `article.approved`, `article.updated`
+### 1. Get your keys (2 minutes)
 
-Dazu einen API-Key unter Einstellungen → API-Key erzeugen (`lc_…`), oder im
-Projekt einen projektgebundenen Key (`cp_…`).
+1. Create a free account at [app.visibly-ai.com](https://app.visibly-ai.com).
+2. **Settings > API key**, create one. It starts with `lc_`.
+3. **Project > Content > CMS connections**, new connection of type **Webhook**:
+   - **URL:** your site plus the path from the table below
+   - **Secret:** anything you like, you will paste it again in step 2
+   - **Events:** `article.approved`, `article.updated`
 
-### 2. Umgebungsvariablen
+| Stack | Webhook path |
+|---|---|
+| WordPress | `/wp-json/ai-automation/v1/webhook` |
+| Astro, Next.js | `/api/visibly/webhook` |
+| Flask | `/webhooks/visibly` |
 
-| Variable | Pflicht | Bedeutung |
+### 2. Install
+
+**WordPress**, no deployment needed:
+
+1. Copy [`apps/wordpress/ai-automation-connector.php`](apps/wordpress/ai-automation-connector.php)
+   into `wp-content/plugins/ai-automation-connector/`.
+2. Activate it under Plugins.
+3. **Settings > AI Automation**: paste the secret and the API key. The page
+   shows the exact webhook URL to copy back into Visibly.
+
+**Astro, Next.js, Flask**, one Railway project each:
+
+1. New project from this repo.
+2. Set `RAILWAY_DOCKERFILE_PATH` to `apps/<stack>/Dockerfile`.
+3. **Add a volume mounted at `/data`.** Railway's filesystem is otherwise
+   ephemeral: new container, articles gone.
+4. Set the variables below.
+
+| Variable | Required | What it is |
 |---|---|---|
-| `VISIBLY_WEBHOOK_SECRET` | ja | Dasselbe Secret wie in der Verbindung |
-| `VISIBLY_API_KEY` | ja | `lc_…` oder `cp_…` für die Pull-API |
-| `SITE_URL` | ja | Öffentliche Basis-URL, z. B. `https://blog.example.com` |
-| `CONTENT_DIR` | nein | Wo Artikel liegen. Default `/data/content` |
-| `VISIBLY_BASE_URL` | nein | Nur für abweichende Installationen |
+| `VISIBLY_WEBHOOK_SECRET` | yes | The same secret as in the connection |
+| `VISIBLY_API_KEY` | yes | `lc_…` or project-scoped `cp_…` |
+| `SITE_URL` | yes | Your public base URL |
+| `CONTENT_DIR` | no | Where articles live. Default `/data/content` |
+| `VISIBLY_BASE_URL` | no | Only for self-hosted installations |
 
-Flask liest zusätzlich `CONTENTPILOT_WEBHOOK_SECRET` (der Name, den das SDK
-erwartet). Setze beide auf denselben Wert.
+Flask also reads `CONTENTPILOT_WEBHOOK_SECRET`, the name its SDK expects. Set
+both to the same value.
 
-### 3. Auf Railway
+### 3. Approve an article in Visibly
 
-1. Neues Projekt aus diesem Repo, Root-Verzeichnis auf `/` lassen.
-2. **Variable `RAILWAY_DOCKERFILE_PATH`** auf `apps/<starter>/Dockerfile` setzen.
-3. **Volume anlegen und auf `/data` mounten.** Ohne Volume ist Railways
-   Dateisystem flüchtig: Container neu, Artikel weg.
-4. Die Variablen aus der Tabelle eintragen.
+It shows up on your site within seconds.
 
-Alternativ liegt in jedem Starter eine `railway.json` mit demselben Aufbau.
+---
 
-## Lokal ausprobieren
+## Already have a CMS?
 
-```bash
-# Connector einmal bauen (Astro und Next.js hängen daran)
-cd packages/connector-node && npm install && npm run build && npm test
+The connector is deliberately **one file**. Copy it, swap the storage call for
+your own, keep everything else:
 
-# Astro
-cd apps/astro && npm install && npm run build
-CONTENT_DIR=/tmp/anycms SITE_URL=http://localhost:4321 \
-  VISIBLY_WEBHOOK_SECRET=test VISIBLY_API_KEY=lc_test npm start
-
-# Next.js
-cd apps/nextjs && npm install && npm run build && npm start
-
-# Flask
-cd apps/flask && pip install -r requirements.txt && python app.py
-```
-
-Jeder Starter bringt einen End-to-End-Test mit, der einen signierten Webhook
-gegen einen gefälschten Visibly-Server schickt und prüft, dass der Artikel
-danach auf der Seite steht:
-
-```bash
-cd packages/connector-node && npm test          # 13 Unit-Tests
-cd apps/astro   && npm run build && node test/e2e.mjs
-cd apps/nextjs  && npm run build && node test/e2e.mjs
-cd apps/flask   && python test_e2e.py
-```
-
-## Du hast schon ein CMS?
-
-Der Connector ist bewusst eine einzige Datei. Kopiere sie in dein Projekt und
-tausche das Ablegen gegen deinen eigenen Speicher:
-
-- **Astro:** [`apps/astro/src/pages/api/visibly/webhook.ts`](apps/astro/src/pages/api/visibly/webhook.ts):
-  funktioniert unverändert in jedem Astro-Projekt mit `output: 'server'`,
-  auch in fertigen Vorlagen wie
+- **WordPress:** [`ai-automation-connector.php`](apps/wordpress/ai-automation-connector.php)
+  is a complete plugin. Replace `aiac_upsert_post` to target a custom post type.
+- **Astro:** [`webhook.ts`](apps/astro/src/pages/api/visibly/webhook.ts) works
+  unchanged in any Astro project with `output: 'server'`, including finished
+  themes like
   [astro-seo-blog-template](https://github.com/kevingabeci/astro-seo-blog-template).
-- **Next.js:** [`apps/nextjs/app/api/visibly/webhook/route.ts`](apps/nextjs/app/api/visibly/webhook/route.ts):
-  Node-Runtime ist Pflicht, Edge kann keine Dateien schreiben.
-- **Flask/Django/FastAPI:** `pip install ai-content-autopilot` und den
-  Blueprint registrieren, siehe [`apps/flask/app.py`](apps/flask/app.py).
+- **Next.js:** [`route.ts`](apps/nextjs/app/api/visibly/webhook/route.ts).
+  Node runtime is required; Edge cannot write files.
+- **Python:** `pip install ai-content-autopilot`, register the blueprint. See
+  [`apps/flask/app.py`](apps/flask/app.py).
+- **Anything else:** [`docs/CONTRACT.md`](docs/CONTRACT.md) describes the whole
+  protocol. Roughly 50 lines of work in any language.
 
-## Mehrsprachig
+All four implementations produce and accept the **same** HMAC signature,
+verified across Node, PHP and Python including non-ASCII payloads.
 
-Ein Visibly-Artikel trägt genau **eine** Sprache; es gibt keinen
-Übersetzungs-Endpunkt. Zwei Wege:
+---
 
-1. **Dein CMS übersetzt.** Du bekommst den Quellartikel und erzeugst die
-   übrigen Sprachen selbst.
-2. **Ein Cluster je Sprache.** In Visibly bekommt jeder Cluster eigene Sprache,
-   eigenes Zielland und einen eigenen Pfad-Präfix. Jeder Artikel kommt dann mit
-   `content_language`, `target_country` und `url_prefix` an, und die Starter
-   legen ihn unter dem passenden Pfad ab.
+## Where articles are stored
 
-Die `hreflang`-Verknüpfung baut **dein CMS**: Visibly liefert Slug, Präfix und
-Sprache als Bauplan, die fertige URL entsteht bei dir. Details in
-[`docs/VISIBLY.md`](docs/VISIBLY.md).
+As Markdown files with frontmatter, not in a database. Astro and Next.js read
+that natively, humans can look at it, there is no schema to migrate, and on
+Railway a volume is enough instead of a second service. WordPress writes real
+posts, because that is what WordPress is.
 
-## Lizenz
+Prefer a database? Swap one function call. The contract does not care.
 
-MIT
+---
+
+## Multilingual and hreflang
+
+A Visibly article carries exactly **one** language; there is no translation
+endpoint. Two ways to go multilingual:
+
+1. **Your CMS translates.** You receive the source article and produce the
+   other languages yourself. Slow by nature, which is exactly why the handler
+   must not run inside the webhook request.
+2. **One cluster per language.** Each Visibly cluster gets its own language,
+   target country and path prefix. Articles then arrive with
+   `content_language`, `target_country` and `url_prefix`, written natively in
+   that language rather than translated, with keyword research per market.
+
+**Visibly does not build URLs and emits no hreflang tags.** It ships slug,
+prefix and language as the blueprint; the finished URL is yours, and you report
+it back. So the tags are yours to render. Rules and pitfalls:
+[`docs/CONTRACT.md`](docs/CONTRACT.md).
+
+---
+
+## Tested
+
+```bash
+cd packages/ai-automation-connector && npm install && npm run build && npm test
+cd apps/astro     && npm install && npm run build && node test/e2e.mjs
+cd apps/nextjs    && npm install && npm run build && node test/e2e.mjs
+cd apps/flask     && pip install -r requirements.txt && python test_e2e.py
+cd apps/wordpress && php test_signature.php
+```
+
+Each end-to-end test runs the real server, sends a signed webhook, answers from
+a fake Visibly, and asserts that the response arrives in milliseconds, the
+article lands on the page, and the URL is reported back.
+
+That is not decoration. The Next.js test caught a wrong start path in its own
+Dockerfile on the first run: the build was green, the container would not have
+started.
+
+---
+
+## License
+
+MIT. Use it, fork it, sell what you build with it.

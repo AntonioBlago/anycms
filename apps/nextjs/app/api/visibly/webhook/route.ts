@@ -4,8 +4,8 @@
  * In Visibly als CMS-Verbindung vom Typ "webhook" eintragen:
  *   https://deine-domain.de/api/visibly/webhook
  */
-import { handleWebhook } from '@anycms/visibly-connector';
-import { speichereArtikel } from '@anycms/visibly-connector/storage';
+import { handleWebhook } from '@anycms/ai-automation-connector';
+import { speichereArtikel } from '@anycms/ai-automation-connector/storage';
 
 // Node-Runtime ist Pflicht: der Connector schreibt Dateien, das kann Edge nicht.
 export const runtime = 'nodejs';

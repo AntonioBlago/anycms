@@ -1,5 +1,5 @@
 {
-  "name": "@anycms/visibly-connector",
+  "name": "@anycms/ai-automation-connector",
   "version": "1.0.0",
   "description": "Visibly Content Autopilot connector for Node-based CMS (webhook verification, pull API, markdown storage)",
   "type": "module",

@@ -1,4 +1,4 @@
-import { listeArtikel } from '@anycms/visibly-connector/storage';
+import { listeArtikel } from '@anycms/ai-automation-connector/storage';
 
 // Die Artikel liegen als Dateien und ändern sich per Webhook: kein Caching.
 export const dynamic = 'force-dynamic';

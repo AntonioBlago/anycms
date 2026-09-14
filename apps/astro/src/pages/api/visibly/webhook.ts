@@ -11,8 +11,8 @@
  */
 
 import type { APIRoute } from 'astro';
-import { handleWebhook } from '@anycms/visibly-connector';
-import { speichereArtikel } from '@anycms/visibly-connector/storage';
+import { handleWebhook } from '@anycms/ai-automation-connector';
+import { speichereArtikel } from '@anycms/ai-automation-connector/storage';
 
 export const prerender = false;
 
