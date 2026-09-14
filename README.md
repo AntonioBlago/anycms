@@ -1,5 +1,25 @@
 # AI Automation Connector
 
+```
+   _   ___     _  _   _ _____ ___  __  __   _ _____ ___ ___  _  _
+  /_\ |_ _|   /_\| | | |_   _/ _ \|  \/  | /_\_   _|_ _/ _ \| \| |
+ / _ \ | |   / _ \ |_| | | || (_) | |\/| |/ _ \| |  | | (_) | .` |
+/_/ \_\___| /_/ \_\___/  |_| \___/|_|  |_/_/ \_\_| |___\___/|_|\_|
+
+  ___ ___  _  _ _  _ ___ ___ _____ ___  ___
+ / __/ _ \| \| | \| | __/ __|_   _/ _ \| _ \    your cms, writing itself
+| (_| (_) | .` | .` | _| (__  | || (_) |   /    wordpress · astro · next · flask
+ \___\___/|_|\_|_|\_|___\___| |_| \___/|_|_\    mit · one file · railway-ready
+```
+
+```console
+$ visibly --approve article
+  → POST /webhook                    signed with HMAC-SHA256
+  ← 202 accepted                     in 30ms, before any work
+  ⟳ GET  /api/v1/articles/77         fetched in the background
+  ✓ /blog/trademark-research         live, url reported back
+```
+
 **Your CMS, writing itself.** Connect any content system to an AI content
 pipeline: articles get researched, written, and delivered to your site
 automatically. Pick your stack, deploy, paste two keys, done.
@@ -9,7 +29,7 @@ automatically. Pick your stack, deploy, paste two keys, done.
 | Your stack | Where to start | Setup |
 |---|---|---|
 | **WordPress** | [`apps/wordpress`](apps/wordpress) | Upload one PHP file, paste two keys |
-| **Astro** | [`apps/astro`](apps/astro) | Deploy, or copy one file into your project |
+| **Astro** | [`apps/astro`](apps/astro) | Full SEO blog: search, RSS, sitemap, dark mode, admin |
 | **Next.js** | [`apps/nextjs`](apps/nextjs) | Deploy, or copy one file into your project |
 | **Flask / Django / FastAPI** | [`apps/flask`](apps/flask) | `pip install ai-content-autopilot` |
 | **Anything else** | [`docs/CONTRACT.md`](docs/CONTRACT.md) | ~50 lines in any language |
@@ -90,7 +110,9 @@ Visibly cannot target that post for later edits.
 | `VISIBLY_WEBHOOK_SECRET` | yes | The same secret as in the connection |
 | `VISIBLY_API_KEY` | yes | `lc_…` or project-scoped `cp_…` |
 | `SITE_URL` | yes | Your public base URL |
-| `CONTENT_DIR` | no | Where articles live. Default `/data/content` |
+| `CONTENT_DIR` | no | Where articles live (Next.js, Flask). Default `/data/content` |
+| `POSTS_DIR` | no | Where articles live (Astro). Default `/data/posts` |
+| `VISIBLY_PUBLISH_DIRECTLY` | no | Astro: `true` publishes instead of drafting |
 | `VISIBLY_BASE_URL` | no | Only for self-hosted installations |
 
 Flask also reads `CONTENTPILOT_WEBHOOK_SECRET`, the name its SDK expects. Set
@@ -124,6 +146,28 @@ All four implementations produce and accept the **same** HMAC signature,
 verified across Node, PHP and Python including non-ASCII payloads.
 
 ---
+
+## What the Astro starter gives you
+
+It is not a skeleton. `apps/astro` is the
+[astro-seo-blog-template](https://github.com/kevingabeci/astro-seo-blog-template)
+(MIT, by Apatero) with the connector wired in, so delivered articles land in a
+blog that already has:
+
+- SEO meta, Open Graph, structured data, canonical URLs
+- RSS feed, XML sitemap, robots.txt
+- Full-text search, categories, tags, pagination
+- Dark mode, reading time, table of contents, related posts
+- Multi-language routing, author pages, an admin UI
+
+Two changes were necessary, both documented in the code as `ANYCMS PATCH`:
+
+1. **Blog pages render on the server instead of at build time.** The template
+   prerendered every post. An article delivered at runtime would only have
+   appeared after the next deploy, which makes the whole connector pointless.
+2. **`POSTS_DIR` replaces a hard-coded path.** The template read
+   `public/data/posts` inside the container, which Railway wipes on every
+   deploy. It now points at the mounted volume.
 
 ## Where articles are stored
 

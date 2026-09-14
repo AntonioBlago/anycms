@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="AI Automation Connector — connect any CMS to an AI content pipeline">
+  <title>AI Automation Connector</title>
+
+  <defs>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6571e"/>
+      <stop offset="100%" stop-color="#ff912c"/>
+    </linearGradient>
+    <!-- userSpaceOnUse ist hier Pflicht, nicht Geschmack: eine waagerechte
+         Linie hat Hoehe 0, also eine entartete Bounding-Box, und ein Gradient
+         in objectBoundingBox-Koordinaten wird darauf gar nicht gezeichnet.
+         Absolute Koordinaten geben ausserdem allen Knoten denselben Verlauf,
+         statt jedem seinen eigenen ueber seine winzige eigene Box. -->
+    <linearGradient id="wire" gradientUnits="userSpaceOnUse" x1="120" y1="0" x2="1108" y2="0">
+      <stop offset="0%" stop-color="#2f8ae5"/>
+      <stop offset="55%" stop-color="#f6571e"/>
+      <stop offset="100%" stop-color="#1abc9c"/>
+    </linearGradient>
+    <!-- Ein eigener dunkler Grund: GitHub rendert SVGs in READMEs ohne
+         prefers-color-scheme zuverlaessig, also muss das Bild in beiden
+         Themes fuer sich stehen. -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#0c1115"/>
+      <stop offset="100%" stop-color="#12181f"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="420" rx="16" fill="url(#bg)"/>
+
+  <!-- Raster im Hintergrund: Entwickler-Anmutung ohne Bildmaterial -->
+  <g stroke="#ffffff" stroke-opacity="0.035" stroke-width="1">
+    <path d="M0 60h1200M0 120h1200M0 180h1200M0 240h1200M0 300h1200M0 360h1200"/>
+    <path d="M60 0v420M180 0v420M300 0v420M420 0v420M540 0v420M660 0v420M780 0v420M900 0v420M1020 0v420M1140 0v420"/>
+  </g>
+
+  <!-- Terminal-Kopfzeile -->
+  <g>
+    <rect x="48" y="44" width="1104" height="44" rx="10" fill="#ffffff" fill-opacity="0.04"/>
+    <circle cx="76" cy="66" r="6" fill="#cf2e2e"/>
+    <circle cx="98" cy="66" r="6" fill="#ff912c"/>
+    <circle cx="120" cy="66" r="6" fill="#1abc9c"/>
+    <text x="1128" y="72" text-anchor="end"
+          font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+          font-size="15" fill="#6b7785">MIT · WordPress · Astro · Next.js · Flask</text>
+  </g>
+
+  <!-- Prompt -->
+  <text x="76" y="150"
+        font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="22">
+    <tspan fill="#f6571e">$</tspan>
+    <tspan fill="#8b98a8" dx="12">visibly</tspan>
+    <tspan fill="#4d5a68" dx="10">--approve</tspan>
+    <tspan fill="#6b7785" dx="10">article</tspan>
+  </text>
+
+  <!-- Name -->
+  <text x="72" y="232"
+        font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+        font-size="58" font-weight="700" letter-spacing="-1.5" fill="#ffffff">AI Automation</text>
+  <text x="72" y="300"
+        font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+        font-size="58" font-weight="700" letter-spacing="-1.5" fill="url(#glow)">Connector<tspan fill="#f6571e" font-weight="400">_</tspan></text>
+
+  <!-- Datenfluss -->
+  <g font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="16">
+    <path d="M120 348h988" stroke="url(#wire)" stroke-width="2.5"/>
+    <g fill="#0c1115" stroke="url(#wire)" stroke-width="2.5">
+      <circle cx="120" cy="348" r="8"/>
+      <circle cx="470" cy="348" r="8"/>
+      <circle cx="820" cy="348" r="8"/>
+    </g>
+    <circle cx="1108" cy="348" r="8" fill="#f6571e"/>
+    <g fill="#8b98a8" font-size="13">
+      <text x="295" y="343" text-anchor="middle">&#9656;</text>
+      <text x="645" y="343" text-anchor="middle">&#9656;</text>
+      <text x="964" y="343" text-anchor="middle">&#9656;</text>
+    </g>
+    <text x="120" y="384" text-anchor="middle" fill="#8b98a8">webhook</text>
+    <text x="470" y="384" text-anchor="middle" fill="#8b98a8">verify + 202</text>
+    <text x="820" y="384" text-anchor="middle" fill="#8b98a8">pull article</text>
+    <text x="1108" y="384" text-anchor="middle" fill="#ffffff">your cms</text>
+  </g>
+
+  <!-- Signatur-Badge -->
+  <g transform="translate(940 132)">
+    <rect width="212" height="112" rx="12" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
+    <text x="20" y="34" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+          font-size="13" fill="#6b7785">X-Webhook-Signature</text>
+    <text x="20" y="62" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+          font-size="14" fill="#1abc9c">sha256=59e59d48…</text>
+    <text x="20" y="90" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+          font-size="13" fill="#6b7785">verified in
+      <tspan fill="#8b98a8">node · php · py</tspan>
+    </text>
+  </g>
+</svg>

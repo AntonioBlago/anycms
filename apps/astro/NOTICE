@@ -1,0 +1,21 @@
+This starter is based on astro-seo-blog-template
+  https://github.com/kevingabeci/astro-seo-blog-template
+  Copyright (c) 2025 Apatero, MIT License (see LICENSE in this folder)
+
+Changes made for anycms, all marked "ANYCMS PATCH" in the source:
+
+1. src/lib/posts-dir.ts (new)
+   The post directory was hard-coded to process.cwd()/public/data/posts in six
+   places. On Railway that path lives inside the container and is wiped on every
+   deploy, so delivered articles would not survive. POSTS_DIR now points it at a
+   mounted volume, and lets tests use a temporary folder.
+
+2. src/pages/blog/**, src/pages/[lang]/blog/**
+   Blog pages were prerendered (prerender = true + getStaticPaths). Articles
+   delivered by the connector arrive at RUNTIME, so a prerendered page would only
+   show them after the next deploy. The pages read Astro.params and load posts on
+   demand anyway, so only the build-time generation was removed.
+
+3. src/lib/visibly-storage.ts, src/pages/api/visibly/webhook.ts (new)
+   The connector itself: HMAC verification, immediate 202, background pull, and
+   writing articles in this template's own MDX frontmatter format.

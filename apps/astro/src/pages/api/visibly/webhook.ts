@@ -1,41 +1,44 @@
 /**
- * Visibly-Webhook für Astro.
+ * Visibly webhook for this template.
  *
- * Diese Datei ist der ganze Connector. Sie lässt sich unverändert in jedes
- * Astro-Projekt mit `output: 'server'` kopieren, auch in ein fertiges Template
- * wie astro-seo-blog-template: nur `speichereArtikel` gegen die Ablage des
- * jeweiligen Projekts tauschen.
+ * Paste this URL into Visibly as a CMS connection of type "webhook":
+ *   https://your-domain.com/api/visibly/webhook
  *
- * Trage die URL in Visibly als CMS-Verbindung vom Typ "webhook" ein:
- *   https://deine-domain.de/api/visibly/webhook
+ * The whole connector is this file plus `src/lib/visibly-storage.ts`. Drop
+ * both into any Astro project with `output: 'server'` and swap `storeArticle`
+ * for however that project stores posts.
  */
 
 import type { APIRoute } from 'astro';
 import { handleWebhook } from '@anycms/ai-automation-connector';
-import { speichereArtikel } from '@anycms/ai-automation-connector/storage';
+
+import { storeArticle } from '../../../lib/visibly-storage';
 
 export const prerender = false;
 
 export const POST: APIRoute = async ({ request }) => {
-  // Den ROHEN Körper lesen, nicht das geparste JSON: die Signatur gilt für die
-  // Bytes, die gesendet wurden. Ein Re-Serialisieren ändert sie (Reihenfolge,
-  // Leerzeichen) und lässt jede gültige Signatur durchfallen.
-  const roh = await request.text();
+  // Read the RAW body, not parsed JSON: the signature covers the bytes that
+  // were sent. Re-serializing changes key order and whitespace, and every
+  // valid signature would fail.
+  const raw = await request.text();
 
   const { status, body } = await handleWebhook(
-    roh,
+    raw,
     request.headers.get('x-webhook-signature'),
     {
       secret: process.env.VISIBLY_WEBHOOK_SECRET ?? '',
       apiKey: process.env.VISIBLY_API_KEY ?? '',
       baseUrl: process.env.VISIBLY_BASE_URL,
-      onArticle: async (artikel) => {
-        const gespeichert = await speichereArtikel(artikel, {
+      onArticle: async (article) => {
+        const stored = await storeArticle(article, {
           siteUrl: process.env.SITE_URL ?? 'http://localhost:4321',
+          // Articles land as drafts unless you opt into publishing directly.
+          draft: process.env.VISIBLY_PUBLISH_DIRECTLY !== 'true',
+          author: process.env.VISIBLY_AUTHOR ?? 'admin',
         });
-        // Die zurückgegebene URL meldet der Connector an Visibly zurück; erst
-        // dadurch kann Visibly den Beitrag später gezielt aktualisieren.
-        return gespeichert?.url ?? null;
+        // The returned URL goes back to Visibly; only then can Visibly target
+        // this post for later updates.
+        return stored?.url ?? null;
       },
     },
   );
