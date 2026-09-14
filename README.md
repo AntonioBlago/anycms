@@ -68,7 +68,8 @@ Powered by [Visibly AI](https://app.visibly-ai.com). Free account, no card.
 3. **Settings > AI Automation**: paste the secret and the API key. The page
    shows the exact webhook URL to copy back into Visibly.
 
-**Astro, Next.js, Flask**, one Railway project each:
+**Astro, Next.js, Flask**, one [Railway](https://railway.com?referralCode=YKp8kE)
+project each (referral link):
 
 1. New project from this repo.
 2. Set `RAILWAY_DOCKERFILE_PATH` to `apps/<stack>/Dockerfile`.
