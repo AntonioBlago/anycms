@@ -1,0 +1,52 @@
+{# Eine Beitragsliste. Von index.html und liste.html geteilt, damit Karten
+   ueberall gleich aussehen. #}
+{% macro post_liste(posts) %}
+  {% if not posts %}
+    <div class="empty">
+      <p>No articles yet.</p>
+      <p>Approve one in Visibly and it appears here within seconds.
+         The webhook endpoint is <code>/webhooks/visibly</code>.</p>
+    </div>
+  {% else %}
+    <ul class="post-list">
+      {% for p in posts %}
+        <li class="post-card">
+          <h2><a href="/{{ p.url_pfad }}">{{ p.title }}</a></h2>
+          {% if p.description %}<p>{{ p.description }}</p>{% endif %}
+          <div class="meta">
+            {% if p.pub_date %}
+              <time datetime="{{ p.pub_date }}">{{ datum(p.pub_date, p.lang) }}</time>
+              <span class="dot">·</span>
+            {% endif %}
+            <span>{{ p.reading_minutes }} min read</span>
+            <span class="dot">·</span>
+            <a class="chip" href="/category/{{ p.category }}">{{ p.category }}</a>
+            {% for t in p.tags[:3] %}
+              <a class="chip" href="/tag/{{ t|lower|urlencode }}">#{{ t }}</a>
+            {% endfor %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endmacro %}
+
+{% macro seiten_nav(seite) %}
+  {% if seite.pages > 1 %}
+    <nav class="pagination" aria-label="Pagination">
+      {% if seite.page > 1 %}
+        <a href="{{ '/' if seite.page == 2 else '/page/' ~ (seite.page - 1) }}">← prev</a>
+      {% endif %}
+      {% for n in range(1, seite.pages + 1) %}
+        {% if n == seite.page %}
+          <span class="current" aria-current="page">{{ n }}</span>
+        {% else %}
+          <a href="{{ '/' if n == 1 else '/page/' ~ n }}">{{ n }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if seite.page < seite.pages %}
+        <a href="/page/{{ seite.page + 1 }}">next →</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endmacro %}

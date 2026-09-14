@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/finish-standalone.mjs",
     "start": "next start -H 0.0.0.0 -p ${PORT:-8080}"
   },
   "dependencies": {

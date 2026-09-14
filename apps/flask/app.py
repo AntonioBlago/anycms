@@ -1,35 +1,39 @@
-"""anycms Flask-Starter: Blog, der Visibly-Artikel empfängt.
+"""anyCMS Flask starter: a blog that receives AI-generated articles.
 
-Der Connector ist hier kein eigener Code, sondern das Paket
-``ai-content-autopilot`` (ab 1.1.0). Es prüft die HMAC-Signatur, quittiert mit
-HTTP 202 und holt den Artikel danach im Hintergrund über die Pull-API. Genau
-diese Reihenfolge ist der Punkt: Visibly wartet 10 Sekunden auf die Antwort und
-wiederholt NICHT, wenn sie ausbleibt. Wer erst antwortet, wenn der Artikel
-geschrieben ist, wird mehrfach beliefert und macht dieselbe Arbeit mehrfach.
+The connector here is not custom code but the ``ai-content-autopilot`` package
+(1.1.0 and up). It verifies the HMAC signature, acknowledges with HTTP 202, and
+fetches the article in the background over the pull API. That order is the
+point: Visibly waits 10 seconds for the response and does NOT retry when it
+times out. Answering only after the article is written means being delivered to
+repeatedly and doing the same work several times.
 
-Artikel liegen als Markdown-Dateien unter ``CONTENT_DIR``. **Das Verzeichnis
-muss auf einem Railway-Volume liegen**, sonst sind die Artikel nach dem
-nächsten Deploy weg.
+Articles live as Markdown files under ``CONTENT_DIR``. **That directory must be
+a mounted volume on Railway**, otherwise the articles are gone after the next
+deploy.
 """
 from __future__ import annotations
 
 import os
-import re
 from datetime import UTC, datetime
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
-import markdown
 from ai_content_autopilot import configure_visibly, contentpilot_webhook_bp
 from ai_content_autopilot.client import VisiblyClient
-from flask import Flask, Response, abort, render_template
+from flask import Flask, Response, abort, jsonify, render_template, request
 
-CONTENT_DIR = Path(os.environ.get("CONTENT_DIR", "/data/content"))
-SITE_URL = os.environ.get("SITE_URL", "http://localhost:8080").rstrip("/")
+import content as inhalt
+from content import (
+    CONTENT_DIR,
+    SITE_DESCRIPTION,
+    SITE_NAME,
+    SITE_URL,
+    SLUG_RE,
+)
 
-#: Slug-Prüfung. Der Slug kommt aus einem fremden System und landet in einem
-#: Pfad: ohne diese Prüfung liesse sich mit ``../`` aus dem Verzeichnis
-#: herausschreiben.
-SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$", re.IGNORECASE)
+# ─────────────────────────────────────────────────────────────────────────────
+# Empfang
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def _yaml_wert(wert: object) -> str:
@@ -38,17 +42,11 @@ def _yaml_wert(wert: object) -> str:
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _sichere_teile(pfad: str) -> list[str]:
-    """Pfadteile, die alle der Slug-Regel genügen; sonst leer."""
-    teile = [t for t in pfad.split("/") if t]
-    return teile if teile and all(SLUG_RE.match(t) for t in teile) else []
-
-
 def speichere_artikel(artikel: dict) -> str | None:
-    """Artikel als Markdown ablegen und die öffentliche URL zurückgeben.
+    """Artikel als Markdown ablegen und die oeffentliche URL zurueckgeben.
 
-    Der Dateiname ist der Slug: ein zweiter Aufruf für denselben Artikel
-    überschreibt, er dupliziert nicht.
+    Der Dateiname ist der Slug: ein zweiter Aufruf fuer denselben Artikel
+    ueberschreibt, er dupliziert nicht.
     """
     slug = (artikel.get("slug") or "").strip()
     if not SLUG_RE.match(slug):
@@ -60,58 +58,33 @@ def speichere_artikel(artikel: dict) -> str | None:
     ordner = CONTENT_DIR.joinpath(*teile)
     ordner.mkdir(parents=True, exist_ok=True)
 
-    inhalt = (artikel.get("content_markdown") or "").strip() or artikel.get("content_html") or ""
+    text = (artikel.get("content_markdown") or "").strip() or artikel.get("content_html") or ""
     jetzt = datetime.now(UTC).isoformat()
+    tags = [k for k in (artikel.get("keywords") or []) if isinstance(k, str) and k.strip()]
+
     kopf = "\n".join(
         [
             "---",
             f"title: {_yaml_wert(artikel.get('title'))}",
             f"description: {_yaml_wert(artikel.get('meta_description'))}",
             f"slug: {_yaml_wert(slug)}",
+            # Der Cluster ist die Kategorie: beides ist dieselbe Idee.
+            f"category: {_yaml_wert(teile[0] if teile else 'blog')}",
             f"pubDate: {_yaml_wert(artikel.get('created_at') or jetzt)}",
             f"updatedDate: {_yaml_wert(artikel.get('updated_at') or jetzt)}",
             f"lang: {_yaml_wert(artikel.get('content_language') or 'de')}",
             f"visiblyArticleId: {artikel.get('id')}",
             f"visiblyRevision: {artikel.get('revision') or 1}",
             f"format: {_yaml_wert(artikel.get('content_format') or 'html')}",
+            # Tags stehen immer da, auch leer: ein fehlender Schluessel und eine
+            # leere Liste sind zwei verschiedene Aussagen.
+            "tags: [" + ", ".join(_yaml_wert(t) for t in tags) + "]",
             "---",
             "",
         ]
     )
-    (ordner / f"{slug}.md").write_text(kopf + inhalt + "\n", encoding="utf-8")
+    (ordner / f"{slug}.md").write_text(kopf + text + "\n", encoding="utf-8")
     return f"{SITE_URL}/{'/'.join([*teile, slug])}"
-
-
-def _lies_kopf(roh: str) -> tuple[dict[str, str], str]:
-    """Frontmatter + Rest. Bewusst genügsam: nur ``schlüssel: "wert"`` je Zeile."""
-    treffer = re.match(r"^---\r?\n(.*?)\r?\n---\r?\n?", roh, re.S)
-    if not treffer:
-        return {}, roh
-    kopf: dict[str, str] = {}
-    for zeile in treffer.group(1).splitlines():
-        m = re.match(r"^(\w+):\s*(.*)$", zeile)
-        if m:
-            kopf[m.group(1)] = m.group(2).strip('"').replace('\\"', '"')
-    return kopf, roh[treffer.end():]
-
-
-def liste_artikel() -> list[dict[str, str]]:
-    """Alle abgelegten Artikel, neueste zuerst."""
-    gefunden: list[dict[str, str]] = []
-    if not CONTENT_DIR.exists():
-        return gefunden  # noch nichts empfangen ist kein Fehler
-    for datei in CONTENT_DIR.rglob("*.md"):
-        kopf, _ = _lies_kopf(datei.read_text(encoding="utf-8"))
-        rel = datei.relative_to(CONTENT_DIR).with_suffix("")
-        gefunden.append(
-            {
-                "title": kopf.get("title") or datei.stem,
-                "description": kopf.get("description", ""),
-                "pubDate": kopf.get("pubDate", ""),
-                "urlPfad": rel.as_posix(),
-            }
-        )
-    return sorted(gefunden, key=lambda a: a["pubDate"], reverse=True)
 
 
 def _handler(artikel: dict) -> bool:
@@ -119,8 +92,8 @@ def _handler(artikel: dict) -> bool:
     url = speichere_artikel(artikel)
     if not url:
         return False
-    # Erst die Rückmeldung macht die URL in Visibly bekannt; ohne sie kann
-    # Visibly den Beitrag später nicht gezielt aktualisieren.
+    # Erst die Rueckmeldung macht die URL in Visibly bekannt; ohne sie kann
+    # Visibly den Beitrag spaeter nicht gezielt aktualisieren.
     try:
         VisiblyClient(
             api_key=os.environ.get("VISIBLY_API_KEY", ""),
@@ -129,6 +102,11 @@ def _handler(artikel: dict) -> bool:
     except Exception as e:  # noqa: BLE001 - eine fehlende Rueckmeldung ist kein Datenverlust
         print(f"[visibly] Rueckmeldung fehlgeschlagen: {e}")
     return True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# App
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def create_app() -> Flask:
@@ -143,30 +121,179 @@ def create_app() -> Flask:
     )
     app.register_blueprint(contentpilot_webhook_bp)
 
+    @app.context_processor
+    def _globals() -> dict:
+        return {
+            "site_name": SITE_NAME,
+            "site_description": SITE_DESCRIPTION,
+            "site_url": SITE_URL,
+            "datum": inhalt.datum_lesbar,
+        }
+
+    # ── Listen ───────────────────────────────────────────────────────────────
+
     @app.get("/")
     def start() -> str:
-        return render_template("index.html", artikel=liste_artikel())
+        seite = inhalt.blaettern(inhalt.alle_posts(), 1)
+        return render_template("index.html", seite=seite, titel="Articles")
+
+    @app.get("/page/<int:nummer>")
+    def blaetter_seite(nummer: int) -> str:
+        alle = inhalt.alle_posts()
+        seite = inhalt.blaettern(alle, nummer)
+        # Eine Seitenzahl jenseits des Bestands ist ein 404, keine leere Liste:
+        # sonst indexieren Suchmaschinen beliebig viele leere Seiten.
+        if nummer > seite["pages"]:
+            abort(404)
+        return render_template("index.html", seite=seite, titel="Articles")
+
+    @app.get("/categories")
+    def kategorien() -> str:
+        return render_template(
+            "terms.html",
+            titel="Categories",
+            lead="Each category is a content cluster in Visibly, with its own path, "
+                 "language and target country.",
+            begriffe=inhalt.kategorien(inhalt.alle_posts()),
+            basis="/category",
+            praefix="",
+        )
+
+    @app.get("/category/<name>")
+    def kategorie(name: str) -> str:
+        gesucht = name.lower()
+        posts = [p for p in inhalt.alle_posts() if p.category.lower() == gesucht]
+        # Eine leere Kategorie gibt es nicht: sie entsteht erst durch Beitraege.
+        if not posts:
+            abort(404)
+        return render_template("liste.html", titel=name, posts=posts)
+
+    @app.get("/tags")
+    def tags() -> str:
+        return render_template(
+            "terms.html",
+            titel="Tags",
+            lead="Tags come from the target keywords of each article.",
+            begriffe=inhalt.tag_liste(inhalt.alle_posts()),
+            basis="/tag",
+            praefix="#",
+        )
+
+    @app.get("/tag/<name>")
+    def tag(name: str) -> str:
+        gesucht = name.lower()
+        posts = [p for p in inhalt.alle_posts() if any(t.lower() == gesucht for t in p.tags)]
+        if not posts:
+            abort(404)
+        return render_template("liste.html", titel=f"#{name}", posts=posts)
+
+    @app.get("/search")
+    def suche() -> str:
+        return render_template("search.html", titel="Search")
+
+    # ── Maschinenlesbares ────────────────────────────────────────────────────
+
+    @app.get("/search-index.json")
+    def such_index() -> Response:
+        antwort = jsonify(inhalt.such_index(inhalt.alle_posts()))
+        # Kurz zwischenspeichern: die Suche fragt ihn bei jedem Aufruf, und ein
+        # per Webhook neuer Artikel darf hoechstens eine Minute fehlen.
+        antwort.headers["Cache-Control"] = "public, max-age=60"
+        return antwort
+
+    @app.get("/rss.xml")
+    def rss() -> Response:
+        posts = inhalt.alle_posts()[:50]
+        eintraege = "\n".join(
+            f"""    <item>
+      <title>{xml_escape(p.title)}</title>
+      <link>{xml_escape(p.url)}</link>
+      <guid isPermaLink="true">{xml_escape(p.url)}</guid>
+      <description>{xml_escape(p.description)}</description>
+      {f'<pubDate>{inhalt.rfc822(p.pub_date)}</pubDate>' if inhalt.rfc822(p.pub_date) else ''}
+      <category>{xml_escape(p.category)}</category>
+    </item>"""
+            for p in posts
+        )
+        feed = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>{xml_escape(SITE_NAME)}</title>
+    <link>{xml_escape(SITE_URL)}</link>
+    <description>{xml_escape(SITE_DESCRIPTION)}</description>
+    <atom:link href="{xml_escape(SITE_URL)}/rss.xml" rel="self" type="application/rss+xml"/>
+    <lastBuildDate>{datetime.now(UTC).strftime('%a, %d %b %Y %H:%M:%S +0000')}</lastBuildDate>
+{eintraege}
+  </channel>
+</rss>"""
+        return Response(feed, mimetype="application/rss+xml")
+
+    @app.get("/sitemap.xml")
+    def sitemap() -> Response:
+        posts = inhalt.alle_posts()
+        eintraege = [f"  <url><loc>{xml_escape(SITE_URL)}/</loc><priority>1.0</priority></url>"]
+        for p in posts:
+            # lastmod zaehlt: ohne das gilt jede Aktualisierung als unsichtbar.
+            lastmod = (p.updated_date or p.pub_date or "")[:10]
+            eintraege.append(
+                f"  <url><loc>{xml_escape(p.url)}</loc>"
+                + (f"<lastmod>{lastmod}</lastmod>" if lastmod else "")
+                + "<priority>0.8</priority></url>"
+            )
+        for k in inhalt.kategorien(posts):
+            eintraege.append(
+                f"  <url><loc>{xml_escape(SITE_URL)}/category/{k['name']}</loc>"
+                "<priority>0.5</priority></url>"
+            )
+        for t in inhalt.tag_liste(posts):
+            eintraege.append(
+                f"  <url><loc>{xml_escape(SITE_URL)}/tag/{t['name']}</loc>"
+                "<priority>0.3</priority></url>"
+            )
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            + "\n".join(eintraege)
+            + "\n</urlset>"
+        )
+        return Response(xml, mimetype="application/xml")
+
+    @app.get("/robots.txt")
+    def robots() -> Response:
+        # Webhook und Suchindex gehoeren in keinen Index.
+        text = (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /webhooks/\n"
+            "Disallow: /search\n"
+            "Disallow: /search-index.json\n\n"
+            f"Sitemap: {SITE_URL}/sitemap.xml\n"
+        )
+        return Response(text, mimetype="text/plain")
 
     @app.get("/health")
     def health() -> Response:
         return Response('{"status":"ok"}', mimetype="application/json")
 
+    # ── Artikel (faengt alles Uebrige) ───────────────────────────────────────
+
     @app.get("/<path:pfad>")
     def artikelseite(pfad: str) -> str:
-        teile = _sichere_teile(pfad)
-        if not teile:
+        gelesen = inhalt.post_lesen(pfad)
+        if gelesen is None:
             abort(404)
-        datei = CONTENT_DIR.joinpath(*teile[:-1], f"{teile[-1]}.md")
-        if not datei.is_file():
-            abort(404)
-        kopf, inhalt = _lies_kopf(datei.read_text(encoding="utf-8"))
-        # Visibly liefert je nach Cluster Markdown ODER HTML.
-        gerendert = (
-            markdown.markdown(inhalt, extensions=["extra"])
-            if kopf.get("format") == "markdown"
-            else inhalt
+        post, html, toc = gelesen
+        return render_template(
+            "post.html",
+            post=post,
+            html=html,
+            toc=toc,
+            verwandt=inhalt.verwandte(inhalt.alle_posts(), post),
         )
-        return render_template("artikel.html", kopf=kopf, inhalt=gerendert)
+
+    @app.errorhandler(404)
+    def nicht_gefunden(_e: object) -> tuple[str, int]:
+        return render_template("404.html", titel="404"), 404
 
     return app
 

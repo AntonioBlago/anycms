@@ -1,17 +1,17 @@
 {% extends "base.html" %}
+{# "with context": ohne das sehen Makros aus einer importierten Datei
+   weder den context_processor noch die Variablen der Seite, und ein
+   Aufruf von datum() endet im 500er. #}
+{% from "_liste.html" import post_liste, seiten_nav with context %}
+{% block head %}
+  <meta name="description" content="{{ site_description }}" />
+  <link rel="canonical" href="{{ site_url }}{{ '/' if seite.page == 1 else '/page/' ~ seite.page }}" />
+{% endblock %}
 {% block inhalt %}
-  <h1>Blog</h1>
-  {% if not artikel %}
-    <p class="leer">
-      Noch keine Artikel. Sobald du in Visibly einen Artikel freigibst, landet er hier.
-    </p>
-  {% else %}
-    {% for a in artikel %}
-      <article>
-        <h2><a href="/{{ a.urlPfad }}">{{ a.title }}</a></h2>
-        {% if a.description %}<p>{{ a.description }}</p>{% endif %}
-        {% if a.pubDate %}<time datetime="{{ a.pubDate }}">{{ a.pubDate[:10] }}</time>{% endif %}
-      </article>
-    {% endfor %}
-  {% endif %}
+  <h1 class="page-title">Articles</h1>
+  <p class="page-lead">
+    {% if seite.pages > 1 %}Page {{ seite.page }} of {{ seite.pages }}{% else %}{{ site_description }}{% endif %}
+  </p>
+  {{ post_liste(seite['items']) }}
+  {{ seiten_nav(seite) }}
 {% endblock %}

@@ -75,11 +75,20 @@ export async function speichereArtikel(
   await mkdir(unterverzeichnis, { recursive: true });
 
   const inhalt = artikel.content_markdown?.trim() || artikel.content_html || '';
+
+  // Der Cluster ist die Kategorie: ein Visibly-Cluster und eine Blog-Kategorie
+  // sind dieselbe Idee, also gruppieren sich /glossar/-Artikel von selbst.
+  const kategorie = sicherePraefixTeile[0] ?? 'blog';
+  const tags = Array.isArray(artikel.keywords)
+    ? artikel.keywords.filter((k): k is string => typeof k === 'string' && k.trim() !== '')
+    : [];
+
   const frontmatter = [
     '---',
     `title: ${yamlWert(artikel.title)}`,
     `description: ${yamlWert(artikel.meta_description)}`,
     `slug: ${yamlWert(slug)}`,
+    `category: ${yamlWert(kategorie)}`,
     `pubDate: ${yamlWert(artikel.created_at ?? new Date().toISOString())}`,
     `updatedDate: ${yamlWert(artikel.updated_at ?? new Date().toISOString())}`,
     `lang: ${yamlWert(artikel.content_language ?? 'de')}`,
@@ -88,9 +97,9 @@ export async function speichereArtikel(
     // führen macht sichtbar, welcher Stand vorliegt.
     `visiblyRevision: ${artikel.revision ?? 1}`,
     `format: ${yamlWert(artikel.content_format ?? 'html')}`,
-    ...(Array.isArray(artikel.keywords) && artikel.keywords.length
-      ? [`keywords: [${artikel.keywords.map((k) => yamlWert(k)).join(', ')}]`]
-      : []),
+    // Tags stehen IMMER da, auch leer: ein fehlender Schlüssel und eine leere
+    // Liste sind für den Leser zwei verschiedene Aussagen.
+    `tags: [${tags.map((k) => yamlWert(k)).join(', ')}]`,
     '---',
     '',
     inhalt,
@@ -110,7 +119,11 @@ export interface ArtikelKopf {
   title: string;
   description: string;
   pubDate: string;
+  updatedDate: string;
   lang: string;
+  category: string;
+  tags: string[];
+  format: string;
   pfad: string;
   urlPfad: string;
 }
@@ -139,7 +152,11 @@ export async function listeArtikel(dir = CONTENT_DIR): Promise<ArtikelKopf[]> {
           title: kopf.title ?? slug,
           description: kopf.description ?? '',
           pubDate: kopf.pubDate ?? '',
+          updatedDate: kopf.updatedDate ?? kopf.pubDate ?? '',
           lang: kopf.lang ?? 'de',
+          category: kopf.category ?? teile[0] ?? 'blog',
+          tags: leseListe(kopf.tags),
+          format: kopf.format ?? 'html',
           pfad,
           urlPfad: [...teile, slug].join('/'),
         });
@@ -149,6 +166,23 @@ export async function listeArtikel(dir = CONTENT_DIR): Promise<ArtikelKopf[]> {
 
   await durchlaufe(dir, []);
   return gefunden.sort((a, b) => (a.pubDate < b.pubDate ? 1 : -1));
+}
+
+/**
+ * Eine Frontmatter-Liste `["a", "b"]` lesen.
+ *
+ * Bewusst kein YAML-Parser: das Format schreibt dieselbe Bibliothek, die es
+ * liest, und eine Abhängigkeit für eine Zeile in eckigen Klammern wäre teuer
+ * bezahlt. Unlesbares ergibt eine leere Liste, nie einen Absturz.
+ */
+export function leseListe(roh: string | undefined): string[] {
+  if (!roh) return [];
+  const inhalt = roh.trim().replace(/^\[|\]$/g, '').trim();
+  if (!inhalt) return [];
+  return inhalt
+    .split(',')
+    .map((t) => t.trim().replace(/^"|"$/g, '').replace(/\\"/g, '"'))
+    .filter(Boolean);
 }
 
 /** Frontmatter lesen. Bewusst genügsam: nur `schlüssel: "wert"` je Zeile. */

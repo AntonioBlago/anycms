@@ -1,76 +1,47 @@
-# AI Automation Connector
+# anyCMS
 
 ```
-   _   ___     _  _   _ _____ ___  __  __   _ _____ ___ ___  _  _
-  /_\ |_ _|   /_\| | | |_   _/ _ \|  \/  | /_\_   _|_ _/ _ \| \| |
- / _ \ | |   / _ \ |_| | | || (_) | |\/| |/ _ \| |  | | (_) | .` |
-/_/ \_\___| /_/ \_\___/  |_| \___/|_|  |_/_/ \_\_| |___\___/|_|\_|
-
-  ___ ___  _  _ _  _ ___ ___ _____ ___  ___
- / __/ _ \| \| | \| | __/ __|_   _/ _ \| _ \    your cms, writing itself
-| (_| (_) | .` | .` | _| (__  | || (_) |   /    wordpress · astro · next · flask
- \___\___/|_|\_|_|\_|___\___| |_| \___/|_|_\    mit · one file · railway-ready
+                    ____ __  __ ____
+  __ _ _ __  _   _ / ___|  \/  / ___|
+ / _` | '_ \| | | | |   | |\/| \___ \     pick your cms. start building.
+| (_| | | | | |_| | |___| |  | |___) |
+ \__,_|_| |_|\__, |\____|_|  |_|____/     wordpress · astro · next.js · flask
+             |___/                        mit · railway-ready · ai-connected
 ```
+
+Four production-ready blogs, one for each stack you might already be on. Deploy
+one, point it at an AI content pipeline, and articles publish themselves.
 
 ```console
-$ visibly --approve article
-  → POST /webhook                    signed with HMAC-SHA256
-  ← 202 accepted                     in 30ms, before any work
-  ⟳ GET  /api/v1/articles/77         fetched in the background
-  ✓ /blog/trademark-research         live, url reported back
+$ pick your stack          wordpress · astro · next.js · flask
+$ deploy                   one dockerfile, one volume, two keys
+$ approve an article       in visibly
+  → POST /webhook          signed, verified, 202 in 30ms
+  ✓ /guides/your-article   live, indexed, in your rss feed
 ```
 
-**Your CMS, writing itself.** Connect any content system to an AI content
-pipeline: articles get researched, written, and delivered to your site
-automatically. Pick your stack, deploy, paste two keys, done.
+---
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy?template=https://github.com/AntonioBlago/anycms)
+## Pick your CMS
 
-| Your stack | Where to start | Setup |
+| Stack | What you get | Setup |
 |---|---|---|
-| **WordPress** | [`apps/wordpress`](apps/wordpress) | Upload one PHP file, paste two keys |
-| **Astro** | [`apps/astro`](apps/astro) | Full SEO blog: search, RSS, sitemap, dark mode, admin |
-| **Next.js** | [`apps/nextjs`](apps/nextjs) | Deploy, or copy one file into your project |
-| **Flask / Django / FastAPI** | [`apps/flask`](apps/flask) | `pip install ai-content-autopilot` |
-| **Anything else** | [`docs/CONTRACT.md`](docs/CONTRACT.md) | ~50 lines in any language |
+| **[WordPress](apps/wordpress)** | One plugin, posts land in your existing site | Upload a PHP file |
+| **[Astro](apps/astro)** | Full SEO blog with admin UI, search, i18n | Deploy |
+| **[Next.js](apps/nextjs)** | App Router blog, server-rendered, no framework CSS | Deploy |
+| **[Flask](apps/flask)** | The same blog in Python, Jinja templates | Deploy |
+| **[Your own](docs/CONTRACT.md)** | The protocol, in ~50 lines of any language | Read the contract |
+
+Every one of them ships with: SEO metadata, Open Graph, JSON-LD structured
+data, canonical URLs, RSS, XML sitemap, robots.txt, categories, tags, full-text
+search, pagination, reading time, related posts, table of contents and dark
+mode. Not a skeleton to fill in.
 
 Powered by [Visibly AI](https://app.visibly-ai.com). Free account, no card.
 
 ---
 
-## What actually happens
-
-```
-Visibly: article approved
-        │
-        │  POST /webhook   (HMAC-SHA256 signed)
-        ▼
-   [1] verify signature          <- wrong? 401, done
-   [2] answer 202 "accepted"     <- IMMEDIATELY, before doing any work
-        │
-        └── in the background:
-            [3] GET /api/v1/articles/{id}    fetch the article
-            [4] write it into your CMS
-            [5] POST /articles/{id}/confirm  report the live URL back
-```
-
-**Step 2 is the one everybody gets wrong.** Visibly waits 10 seconds for your
-response and does **not** retry when it times out, because the request already
-reached you. Answer only after the article is written and you get delivered to
-repeatedly, doing the same work every time. For a CMS that translates incoming
-articles, that is the same bill several times over.
-
-This is not hypothetical. Measured in production on 2026-09-14: three delivery
-attempts for one article turned into three LLM translation runs. Every
-connector here acknowledges first and works afterwards, with a lock so a
-repeated delivery is skipped instead of processed twice.
-
-**Step 5 is what makes updates possible.** Until you report the URL back,
-Visibly cannot target that post for later edits.
-
----
-
-## Get running
+## Start building
 
 ### 1. Get your keys (2 minutes)
 
@@ -110,9 +81,11 @@ Visibly cannot target that post for later edits.
 | `VISIBLY_WEBHOOK_SECRET` | yes | The same secret as in the connection |
 | `VISIBLY_API_KEY` | yes | `lc_…` or project-scoped `cp_…` |
 | `SITE_URL` | yes | Your public base URL |
-| `CONTENT_DIR` | no | Where articles live (Next.js, Flask). Default `/data/content` |
-| `POSTS_DIR` | no | Where articles live (Astro). Default `/data/posts` |
-| `VISIBLY_PUBLISH_DIRECTLY` | no | Astro: `true` publishes instead of drafting |
+| `SITE_NAME` | no | Shown in the header and feeds |
+| `SITE_DESCRIPTION` | no | Shown on the index and in the feed |
+| `CONTENT_DIR` | no | Article directory (Next.js, Flask). Default `/data/content` |
+| `POSTS_DIR` | no | Article directory (Astro). Default `/data/posts` |
+| `POSTS_PER_PAGE` | no | Flask only. Default 10 |
 | `VISIBLY_BASE_URL` | no | Only for self-hosted installations |
 
 Flask also reads `CONTENTPILOT_WEBHOOK_SECRET`, the name its SDK expects. Set
@@ -120,7 +93,40 @@ both to the same value.
 
 ### 3. Approve an article in Visibly
 
-It shows up on your site within seconds.
+It shows up on your site within seconds, in the right category, in the sitemap,
+in the feed, and findable through search.
+
+---
+
+## What actually happens
+
+```
+Visibly: article approved
+        │
+        │  POST /webhook   (HMAC-SHA256 signed)
+        ▼
+   [1] verify signature          <- wrong? 401, done
+   [2] answer 202 "accepted"     <- IMMEDIATELY, before doing any work
+        │
+        └── in the background:
+            [3] GET /api/v1/articles/{id}    fetch the article
+            [4] write it into your CMS
+            [5] POST /articles/{id}/confirm  report the live URL back
+```
+
+**Step 2 is the one everybody gets wrong.** Visibly waits 10 seconds for your
+response and does **not** retry when it times out, because the request already
+reached you. Answer only after the article is written and you get delivered to
+repeatedly, doing the same work every time. For a CMS that translates incoming
+articles, that is the same bill several times over.
+
+This is not hypothetical. Measured in production on 2026-09-14: three delivery
+attempts for one article turned into three LLM translation runs. Every
+connector here acknowledges first and works afterwards, with a lock so a
+repeated delivery is skipped instead of processed twice.
+
+**Step 5 is what makes updates possible.** Until you report the URL back,
+Visibly cannot target that post for later edits.
 
 ---
 
@@ -131,43 +137,20 @@ your own, keep everything else:
 
 - **WordPress:** [`ai-automation-connector.php`](apps/wordpress/ai-automation-connector.php)
   is a complete plugin. Replace `aiac_upsert_post` to target a custom post type.
-- **Astro:** [`webhook.ts`](apps/astro/src/pages/api/visibly/webhook.ts) works
-  unchanged in any Astro project with `output: 'server'`, including finished
-  themes like
-  [astro-seo-blog-template](https://github.com/kevingabeci/astro-seo-blog-template).
+- **Astro:** [`webhook.ts`](apps/astro/src/pages/api/visibly/webhook.ts) plus
+  [`visibly-storage.ts`](apps/astro/src/lib/visibly-storage.ts) work in any
+  Astro project with `output: 'server'`.
 - **Next.js:** [`route.ts`](apps/nextjs/app/api/visibly/webhook/route.ts).
   Node runtime is required; Edge cannot write files.
 - **Python:** `pip install ai-content-autopilot`, register the blueprint. See
   [`apps/flask/app.py`](apps/flask/app.py).
 - **Anything else:** [`docs/CONTRACT.md`](docs/CONTRACT.md) describes the whole
-  protocol. Roughly 50 lines of work in any language.
+  protocol, with pseudocode for a minimal implementation.
 
 All four implementations produce and accept the **same** HMAC signature,
 verified across Node, PHP and Python including non-ASCII payloads.
 
 ---
-
-## What the Astro starter gives you
-
-It is not a skeleton. `apps/astro` is the
-[astro-seo-blog-template](https://github.com/kevingabeci/astro-seo-blog-template)
-(MIT, by Apatero) with the connector wired in, so delivered articles land in a
-blog that already has:
-
-- SEO meta, Open Graph, structured data, canonical URLs
-- RSS feed, XML sitemap, robots.txt
-- Full-text search, categories, tags, pagination
-- Dark mode, reading time, table of contents, related posts
-- Multi-language routing, author pages, an admin UI
-
-Two changes were necessary, both documented in the code as `ANYCMS PATCH`:
-
-1. **Blog pages render on the server instead of at build time.** The template
-   prerendered every post. An article delivered at runtime would only have
-   appeared after the next deploy, which makes the whole connector pointless.
-2. **`POSTS_DIR` replaces a hard-coded path.** The template read
-   `public/data/posts` inside the container, which Railway wipes on every
-   deploy. It now points at the mounted volume.
 
 ## Where articles are stored
 
@@ -177,6 +160,15 @@ Railway a volume is enough instead of a second service. WordPress writes real
 posts, because that is what WordPress is.
 
 Prefer a database? Swap one function call. The contract does not care.
+
+The Astro starter is the
+[astro-seo-blog-template](https://github.com/kevingabeci/astro-seo-blog-template)
+(MIT, by Apatero) with the connector wired in. Two changes were necessary, both
+marked `ANYCMS PATCH` in the source and explained in
+[`apps/astro/NOTICE`](apps/astro/NOTICE): blog pages render on the server
+instead of at build time, and the post directory became configurable. Without
+the first, an article delivered at runtime would only appear after the next
+deploy.
 
 ---
 
@@ -212,11 +204,17 @@ cd apps/wordpress && php test_signature.php
 
 Each end-to-end test runs the real server, sends a signed webhook, answers from
 a fake Visibly, and asserts that the response arrives in milliseconds, the
-article lands on the page, and the URL is reported back.
+article lands on the page, and the URL is reported back. They also check the
+blog around it: canonical URLs, JSON-LD, category and tag pages, RSS, sitemap,
+robots, search index, pagination, and that the stylesheet actually ships.
 
-That is not decoration. The Next.js test caught a wrong start path in its own
-Dockerfile on the first run: the build was green, the container would not have
-started.
+That is not decoration. These tests caught, on their first run:
+
+- a **prerendered blog** in the Astro template, which would have made every
+  delivered article invisible until the next deploy
+- a **wrong start path** in the Next.js Dockerfile: green build, dead container
+- **missing CSS** in the Next.js standalone build: correct HTML, unstyled page
+- a **500 error** in Flask from a Jinja macro imported without context
 
 ---
 

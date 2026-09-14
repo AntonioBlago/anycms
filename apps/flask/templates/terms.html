@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block inhalt %}
+  <h1 class="page-title">{{ titel }}</h1>
+  <p class="page-lead">{{ lead }}</p>
+  {% if not begriffe %}
+    <div class="empty"><p>Nothing here yet.</p></div>
+  {% else %}
+    <div class="chip-row">
+      {% for b in begriffe %}
+        <a class="chip" href="{{ basis }}/{{ b.name|urlencode }}">
+          {{ praefix }}{{ b.name }} <span style="opacity:.6">{{ b.count }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block head %}
+  {# Eine Suchergebnisseite gehoert nicht in den Index: sie hat keinen eigenen
+     Inhalt, nur Verweise auf Seiten, die ohnehin indexiert sind. #}
+  <meta name="robots" content="noindex, follow" />
+{% endblock %}
+{% block inhalt %}
+  <h1 class="page-title">Search</h1>
+  <input class="search-input" type="search" id="q" placeholder="Loading index…" disabled autofocus />
+  <p class="search-count" id="anzahl" hidden></p>
+  <ul class="post-list" id="treffer"></ul>
+  <div class="empty" id="leer" hidden><p>Nothing found.</p></div>
+
+  <script src="/static/search.js"></script>
+{% endblock %}

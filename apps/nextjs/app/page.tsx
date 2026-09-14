@@ -1,26 +1,18 @@
-import { listeArtikel } from '@anycms/ai-automation-connector/storage';
+import { getPosts, paginate, SITE_DESCRIPTION } from '../lib/posts';
+import { PostList, Pagination } from './post-list';
 
-// Die Artikel liegen als Dateien und ändern sich per Webhook: kein Caching.
+// Beitraege kommen per Webhook dazu: nichts hier darf zwischengespeichert werden.
 export const dynamic = 'force-dynamic';
 
 export default async function Startseite() {
-  const artikel = await listeArtikel();
+  const alle = await getPosts();
+  const seite = paginate(alle, 1);
   return (
     <>
-      <h1>Blog</h1>
-      {artikel.length === 0 ? (
-        <p className="leer">
-          Noch keine Artikel. Sobald du in Visibly einen Artikel freigibst, landet er hier.
-        </p>
-      ) : (
-        artikel.map((a) => (
-          <article key={a.urlPfad}>
-            <h2><a href={`/${a.urlPfad}`}>{a.title}</a></h2>
-            {a.description && <p>{a.description}</p>}
-            {a.pubDate && <time dateTime={a.pubDate}>{a.pubDate.slice(0, 10)}</time>}
-          </article>
-        ))
-      )}
+      <h1 className="page-title">Articles</h1>
+      <p className="page-lead">{SITE_DESCRIPTION}</p>
+      <PostList posts={seite.items} />
+      <Pagination page={seite.page} pages={seite.pages} />
     </>
   );
 }

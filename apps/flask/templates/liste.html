@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% from "_liste.html" import post_liste with context %}
+{% block head %}
+  <meta name="description" content="All articles in {{ titel }}." />
+{% endblock %}
+{% block inhalt %}
+  <h1 class="page-title">{{ titel }}</h1>
+  <p class="page-lead">{{ posts|length }} article{{ '' if posts|length == 1 else 's' }}</p>
+  {{ post_liste(posts) }}
+{% endblock %}
