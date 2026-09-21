@@ -37,7 +37,7 @@ data, canonical URLs, RSS, XML sitemap, robots.txt, categories, tags, full-text
 search, pagination, reading time, related posts, table of contents and dark
 mode. Not a skeleton to fill in.
 
-Powered by [Visibly AI](https://app.visibly-ai.com). Free account, no card.
+Powered by [Visibly AI](https://app.visibly-ai.com).
 
 ---
 
@@ -45,12 +45,32 @@ Powered by [Visibly AI](https://app.visibly-ai.com). Free account, no card.
 
 ### 1. Get your keys (2 minutes)
 
-1. Create a free account at [app.visibly-ai.com](https://app.visibly-ai.com).
-2. **Settings > API key**, create one. It starts with `lc_`.
-3. **Project > Content > CMS connections**, new connection of type **Webhook**:
-   - **URL:** your site plus the path from the table below
-   - **Secret:** anything you like, you will paste it again in step 2
-   - **Events:** `article.approved`, `article.updated`
+Everything happens on one page in Visibly.
+
+1. [Register](https://app.visibly-ai.com/register) or
+   [sign in](https://app.visibly-ai.com/login), then
+   [create a project](https://app.visibly-ai.com/onboarding) for your site if
+   you have none yet. CMS connections are part of the Content Autopilot, which
+   needs the Standard plan or higher.
+2. Open [Content Tools](https://app.visibly-ai.com/tools/content), pick your
+   project and click **Content Autopilot**. The page is
+   `https://app.visibly-ai.com/tools/content/autopilot/<project-id>`; scroll to
+   the card **CMS-Zugänge**.
+3. Under **Contentpilot-API-Key (Pull)** click **Key erzeugen**. Copy the key
+   now, it starts with `cp_` and is shown exactly once. It only sees this
+   project, which is what a connector should get. (An account-wide `lc_` key
+   from [Settings > API-Key & MCP](https://app.visibly-ai.com/settings#api-key)
+   works too, but it sees every project.)
+4. On the same page under **Neuen Zugang hinterlegen** create the connection:
+   - **CMS-Typ:** `Webhook (Pull-CMS)`
+   - **Bezeichnung:** any name
+   - **Webhook-URL:** your site plus the path from the table below
+   - **Webhook-Secret:** anything you like, you will paste it again in step 2
+   - **Events:** tick `article.approved` and `article.updated`
+   - **Zugang speichern**
+5. Once your connector is running (step 2), click **Verbindung testen** on the
+   connection. Visibly sends a signed `webhook.test` event; green means URL and
+   secret are right.
 
 | Stack | Webhook path |
 |---|---|
