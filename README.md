@@ -55,22 +55,28 @@ Everything happens on one page in Visibly.
 2. Open [Content Tools](https://app.visibly-ai.com/tools/content), pick your
    project and click **Content Autopilot**. The page is
    `https://app.visibly-ai.com/tools/content/autopilot/<project-id>`; scroll to
-   the card **CMS-Zugänge**.
-3. Under **Contentpilot-API-Key (Pull)** click **Key erzeugen**. Copy the key
-   now, it starts with `cp_` and is shown exactly once. It only sees this
-   project, which is what a connector should get. (An account-wide `lc_` key
-   from [Settings > API-Key & MCP](https://app.visibly-ai.com/settings#api-key)
+   the card **CMS access** (*CMS-Zugänge*).
+3. Under **Contentpilot API key (Pull)** (*Contentpilot-API-Key (Pull)*) click
+   **Create key** (*Key erzeugen*). Copy the key now, it starts with `cp_` and
+   is shown exactly once. It only sees this project, which is what a connector
+   should get. (An account-wide `lc_` key from
+   [Settings > API key & MCP](https://app.visibly-ai.com/settings#api-key)
    works too, but it sees every project.)
-4. On the same page under **Neuen Zugang hinterlegen** create the connection:
-   - **CMS-Typ:** `Webhook (Pull-CMS)`
-   - **Bezeichnung:** any name
-   - **Webhook-URL:** your site plus the path from the table below
-   - **Webhook-Secret:** anything you like, you will paste it again in step 2
-   - **Events:** tick `article.approved` and `article.updated`
-   - **Zugang speichern**
-5. Once your connector is running (step 2), click **Verbindung testen** on the
-   connection. Visibly sends a signed `webhook.test` event; green means URL and
-   secret are right.
+4. On the same page under **Add new access** (*Neuen Zugang hinterlegen*)
+   create the connection:
+   - **CMS type** (*CMS-Typ*): `Webhook (Pull-CMS)`
+   - **Label** (*Bezeichnung*): any name
+   - **Webhook URL** (*Webhook-URL*): your site plus the path from the table below
+   - **Webhook secret** (*Webhook-Secret*): anything you like, you will paste
+     it again in step 2
+   - **Events**: tick `article.approved` and `article.updated`
+   - **Save access** (*Zugang speichern*)
+5. Once your connector is running (step 2), click **Test connection**
+   (*Verbindung testen*) on the connection. Visibly sends a signed
+   `webhook.test` event; green means URL and secret are right.
+
+The Visibly UI is currently German; the italic words are the labels you will
+see on screen.
 
 | Stack | Webhook path |
 |---|---|
