@@ -43,42 +43,51 @@ Powered by [Visibly AI](https://app.visibly-ai.com).
 
 ## Start building
 
-> **Requirement:** a Visibly account on the **Standard plan or higher**. The
-> connector pulls articles that the Content Autopilot writes, and the Autopilot
-> (including the CMS connection and the project API key) is not part of the
-> Free plan. Pick a plan under [Settings](https://app.visibly-ai.com/settings)
-> before step 1, otherwise step 4 answers with 403.
+Five steps, top to bottom. The order matters: **do not test the connection
+before your connector is deployed and running** (step 3). Earlier revisions of
+this guide buried that test inside step 1, with a forward reference to an
+installation step that had not happened yet, and that is exactly where users
+got stuck.
 
-### 1. Get your keys (2 minutes)
+### 1. Choose a plan, create a project
 
-Everything happens on one page in Visibly.
+A Visibly account on the **Standard plan or higher**. The connector pulls
+articles that the Content Autopilot writes, and the Autopilot (including the
+CMS connection and the project API key) is not part of the Free plan. The
+project-scoped `cp_…` key needs Standard or higher; the account-wide `lc_…`
+key needs Pro or higher, because it can reach every project on the account.
 
-1. [Register](https://app.visibly-ai.com/register) or
-   [sign in](https://app.visibly-ai.com/login), then
-   [create a project](https://app.visibly-ai.com/onboarding) for your site if
-   you have none yet.
-2. Open [Content Tools](https://app.visibly-ai.com/tools/content), pick your
-   project and click **Content Autopilot**. The page is
-   `https://app.visibly-ai.com/tools/content/autopilot/<project-id>`; scroll to
-   the card **CMS access** (*CMS-Zugänge*).
-3. Under **Contentpilot API key (Pull)** (*Contentpilot-API-Key (Pull)*) click
+[Register](https://app.visibly-ai.com/register) or
+[sign in](https://app.visibly-ai.com/login), pick a plan under
+[Settings](https://app.visibly-ai.com/settings), then
+[create a project](https://app.visibly-ai.com/onboarding) for your site if
+you have none yet.
+
+### 2. Create the key and the connection in Visibly
+
+Open [Content Tools](https://app.visibly-ai.com/tools/content), pick your
+project and click **Content Autopilot**. The page is
+`https://app.visibly-ai.com/tools/content/autopilot/<project-id>`; scroll to
+the card **CMS access** (*CMS-Zugänge*).
+
+1. Under **Contentpilot API key (Pull)** (*Contentpilot-API-Key (Pull)*) click
    **Create key** (*Key erzeugen*). Copy the key now, it starts with `cp_` and
    is shown exactly once. It only sees this project, which is what a connector
    should get. (An account-wide `lc_` key from
    [Settings > API key & MCP](https://app.visibly-ai.com/settings#api-key)
    works too, but it sees every project and needs the Pro plan.)
-4. On the same page under **Add new access** (*Neuen Zugang hinterlegen*)
-   create the connection:
+2. Under **Add new access** (*Neuen Zugang hinterlegen*) create the
+   connection:
    - **CMS type** (*CMS-Typ*): `Webhook (Pull-CMS)`
    - **Label** (*Bezeichnung*): any name
    - **Webhook URL** (*Webhook-URL*): your site plus the path from the table below
    - **Webhook secret** (*Webhook-Secret*): anything you like, you will paste
-     it again in step 2
+     it again in step 3
    - **Events**: tick `article.approved` and `article.updated`
    - **Save access** (*Zugang speichern*)
-5. Once your connector is running (step 2), click **Test connection**
-   (*Verbindung testen*) on the connection. Visibly sends a signed
-   `webhook.test` event; green means URL and secret are right.
+
+**Do not click "Test connection" yet.** Nothing answers at that URL until your
+connector is deployed and running in step 3; testing now only produces a 404.
 
 The Visibly UI is currently German; the italic words are the labels you will
 see on screen.
@@ -89,7 +98,7 @@ see on screen.
 | Astro, Next.js | `/api/visibly/webhook` |
 | Flask | `/webhooks/visibly` |
 
-### 2. Install
+### 3. Deploy your connector, with the same secret
 
 **WordPress**, no deployment needed:
 
@@ -132,7 +141,24 @@ Pick yours in step 2:
 Flask also reads `CONTENTPILOT_WEBHOOK_SECRET`, the name its SDK expects. Set
 both to the same value.
 
-### 3. Approve an article in Visibly
+### 4. Test the connection in Visibly
+
+Once your connector is deployed and answering requests, go back to the
+connection in Visibly and click **Test connection** (*Verbindung testen*).
+Visibly sends a signed `webhook.test` event; green means the URL and the
+secret are both right.
+
+**If the test fails**, the status code says why:
+
+| Code | Cause | Fix |
+|---|---|---|
+| `404` / `410` | Nothing answers at that URL yet | Confirm the connector from step 3 is deployed and running, and that the path matches the table in step 2 |
+| `301` / `302` / `307` / `308` | The site redirects, often a double slash in the URL or `http` instead of `https` | Fix the URL. **Visibly does not follow redirects**, because the signed event would otherwise reach an address nobody agreed to |
+| `401` | Secret mismatch | Make sure the secret in the Visibly connection and `VISIBLY_WEBHOOK_SECRET` on the connector are identical |
+| `403` | The receiver rejects the request, often a firewall or a missing plugin permission | Check the firewall rules or the plugin's permissions |
+| `5xx` | The connector's own server errored | Check the connector's logs |
+
+### 5. Approve an article in Visibly
 
 It shows up on your site within seconds, in the right category, in the sitemap,
 in the feed, and findable through search.

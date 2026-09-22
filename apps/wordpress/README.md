@@ -9,12 +9,17 @@ are preserved. Activate the plugin if this is a new installation.
 
 Requirement: a Visibly account on the Standard plan or higher. The plugin
 imports articles the Content Autopilot writes, and the Autopilot (CMS
-connection, project API key) is not part of the Free plan.
+connection, project API key) is not part of the Free plan. The project-scoped
+`cp_…` key needs Standard or higher; the account-wide `lc_…` key needs Pro or
+higher, because it can reach every project on the account.
 
 Under **Settings > AI Automation**, configure the shared webhook secret and
 the Visibly API key, then copy the displayed webhook URL into Visibly. Use an
 HTTPS webhook URL and preferably a project-specific `cp_…` API key. An `lc_…`
-account key can access articles from multiple projects.
+account key can access articles from multiple projects. In Visibly, create the
+connection and copy the webhook URL here first; only click "Test connection"
+in Visibly once this plugin is installed, activated and configured, and
+answering requests, otherwise the test fails with a 404.
 
 ### Changes in 1.1.0
 
