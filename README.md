@@ -43,6 +43,12 @@ Powered by [Visibly AI](https://app.visibly-ai.com).
 
 ## Start building
 
+> **Requirement:** a Visibly account on the **Standard plan or higher**. The
+> connector pulls articles that the Content Autopilot writes, and the Autopilot
+> (including the CMS connection and the project API key) is not part of the
+> Free plan. Pick a plan under [Settings](https://app.visibly-ai.com/settings)
+> before step 1, otherwise step 4 answers with 403.
+
 ### 1. Get your keys (2 minutes)
 
 Everything happens on one page in Visibly.
@@ -50,8 +56,7 @@ Everything happens on one page in Visibly.
 1. [Register](https://app.visibly-ai.com/register) or
    [sign in](https://app.visibly-ai.com/login), then
    [create a project](https://app.visibly-ai.com/onboarding) for your site if
-   you have none yet. CMS connections are part of the Content Autopilot, which
-   needs the Standard plan or higher.
+   you have none yet.
 2. Open [Content Tools](https://app.visibly-ai.com/tools/content), pick your
    project and click **Content Autopilot**. The page is
    `https://app.visibly-ai.com/tools/content/autopilot/<project-id>`; scroll to

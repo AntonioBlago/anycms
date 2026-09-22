@@ -7,6 +7,10 @@ with this directory's `ai-automation-connector.php`. This is the only runtime
 file; do not upload the test scripts. Existing settings and article mappings
 are preserved. Activate the plugin if this is a new installation.
 
+Requirement: a Visibly account on the Standard plan or higher. The plugin
+imports articles the Content Autopilot writes, and the Autopilot (CMS
+connection, project API key) is not part of the Free plan.
+
 Under **Settings > AI Automation**, configure the shared webhook secret and
 the Visibly API key, then copy the displayed webhook URL into Visibly. Use an
 HTTPS webhook URL and preferably a project-specific `cp_…` API key. An `lc_…`
