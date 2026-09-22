@@ -66,7 +66,7 @@ Everything happens on one page in Visibly.
    is shown exactly once. It only sees this project, which is what a connector
    should get. (An account-wide `lc_` key from
    [Settings > API key & MCP](https://app.visibly-ai.com/settings#api-key)
-   works too, but it sees every project.)
+   works too, but it sees every project and needs the Pro plan.)
 4. On the same page under **Add new access** (*Neuen Zugang hinterlegen*)
    create the connection:
    - **CMS type** (*CMS-Typ*): `Webhook (Pull-CMS)`
