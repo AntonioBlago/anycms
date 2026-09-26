@@ -157,9 +157,9 @@ Visibly: article approved
 
 **Step 2 is the one everybody gets wrong.** Visibly waits 10 seconds for your
 response and does **not** retry when it times out, because the request already
-reached you. Answer only after the article is written and you get delivered to
-repeatedly, doing the same work every time. For a CMS that translates incoming
-articles, that is the same bill several times over.
+reached you. If you answer only after the article is written, you get delivered
+to repeatedly, doing the same work every time. For a CMS that translates
+incoming articles, that is the same bill several times over.
 
 This is not hypothetical. Measured in production on 2026-09-14: three delivery
 attempts for one article turned into three LLM translation runs. Every
