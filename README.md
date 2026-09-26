@@ -185,6 +185,9 @@ your own, keep everything else:
   Node runtime is required; Edge cannot write files.
 - **Python:** `pip install ai-content-autopilot`, register the blueprint. See
   [`apps/flask/app.py`](apps/flask/app.py).
+- **Agent-assisted setup on any host:** follow
+  [`docs/AGENT_CONNECTOR_SETUP.md`](docs/AGENT_CONNECTOR_SETUP.md) for a
+  provider-aware install, from storage choice through production checks.
 - **Anything else:** [`docs/CONTRACT.md`](docs/CONTRACT.md) describes the whole
   protocol, with pseudocode for a minimal implementation.
 
