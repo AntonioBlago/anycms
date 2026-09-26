@@ -7,10 +7,16 @@ of work in any language.
 
 | Event | When | What to do |
 |---|---|---|
+| `webhook.test` | "Test connection" was clicked in Visibly | Answer `200`; nothing to fetch |
 | `article.approved` | An article was approved | Create the post |
 | `article.updated` | An already published article changed | Overwrite the existing post |
 | `article.published` | A publication was confirmed | Usually nothing |
 | `article.failed` | Generation failed | Log it |
+
+`webhook.test` is the first event any integrator ever receives, and it carries
+**no `article_id`**. Handle it before any code path that needs one, and answer
+it deliberately: a generic "unknown event" reply reads as *accepted but nothing
+happened*, which is indistinguishable from a broken connector.
 
 The payload:
 
@@ -92,6 +98,43 @@ Sending again would trigger the same work a second time.
 **A failure inside your handler is not a `5xx`.** The delivery worked, the work
 did not. A `5xx` invites a retry that reproduces the same error. Log it and
 return `202`.
+
+### Serverless: where "answer first, work later" needs help
+
+The pattern above assumes a process that outlives the response. On Vercel,
+Netlify Functions and Cloudflare Workers it does not: the instance is frozen or
+torn down the moment the response is sent. A floating promise or a daemon thread
+is truncated mid-flight. The sender sees its `202`, the article never lands, and
+**nothing is logged** - the worst failure mode there is, because every signal
+says success.
+
+Two ways out, and which one applies depends on how long the work takes:
+
+- **Use the platform's continuation primitive.** `waitUntil` (Vercel via
+  `@vercel/functions`, Cloudflare via `ExecutionContext`) keeps the instance
+  alive after the response. Required if the work is slow - translation, image
+  generation, anything with an LLM in it.
+- **Do the work inside the request.** If fetching, storing and confirming take a
+  few seconds - the normal case for a file or database write - run them before
+  answering and return `200` with an `id`. Give the whole chain one shared
+  deadline (`AbortSignal.timeout`) so a slow upstream cannot push you past the
+  10 second mark.
+
+What does *not* work is the middle ground: firing the work off and returning
+immediately without a continuation primitive.
+
+One more platform detail, same family of problem: **read the raw body
+yourself.** Several runtimes parse the request body for you, and a body that has
+been through `JSON.parse` and `JSON.stringify` no longer matches its own
+signature. On Vercel's Node runtime that rules out the `(req, res)` handler in
+favour of the Web signature, where `await request.text()` returns the bytes as
+sent:
+
+```js
+export async function POST(request) {
+  const raw = await request.text();   // exact bytes, safe to HMAC
+}
+```
 
 ## Pull API
 
