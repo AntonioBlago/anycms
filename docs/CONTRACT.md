@@ -101,27 +101,32 @@ return `202`.
 
 ### Serverless: where "answer first, work later" needs help
 
-The pattern above assumes a process that outlives the response. On Vercel,
-Netlify Functions and Cloudflare Workers it does not: the instance is frozen or
-torn down the moment the response is sent. A floating promise or a daemon thread
-is truncated mid-flight. The sender sees its `202`, the article never lands, and
-**nothing is logged** - the worst failure mode there is, because every signal
-says success.
+The pattern above assumes a process that outlives the response. In serverless
+runtimes such as Vercel Functions, Netlify Functions and Cloudflare Workers, the
+execution context may be reclaimed after the response. An un-awaited promise or
+a daemon thread does not guarantee that work will finish. The sender may see
+`202` while the article is never stored and **nothing is logged**.
 
-Two ways out, and which one applies depends on how long the work takes:
+Choose the execution model based on the work and the platform's limits:
 
-- **Use the platform's continuation primitive.** `waitUntil` (Vercel via
-  `@vercel/functions`, Cloudflare via `ExecutionContext`) keeps the instance
-  alive after the response. Required if the work is slow - translation, image
-  generation, anything with an LLM in it.
-- **Do the work inside the request.** If fetching, storing and confirming take a
-  few seconds - the normal case for a file or database write - run them before
-  answering and return `200` with an `id`. Give the whole chain one shared
-  deadline (`AbortSignal.timeout`) so a slow upstream cannot push you past the
-  10 second mark.
+- **Use the platform's continuation primitive for bounded work.** `waitUntil`
+  (Vercel via `@vercel/functions`, Cloudflare via `ExecutionContext`) can keep
+  work running after the response, but only within the function's execution
+  limits. For example, Cloudflare Workers allow up to 30 seconds after the
+  invocation ends; Vercel work is bounded by the function's `maxDuration`. This
+  is suitable for short deferred tasks, not a durable queue.
+- **Use a durable queue for work that may exceed those limits or must complete.**
+  Enqueue the job durably before acknowledging it, then process it in a separate
+  worker with retries and idempotency. This is the right fit for slow
+  translations, image generation or other long-running LLM work.
+- **Do the work inside the request** when fetching, storing and confirming take
+  only a few seconds - the normal case for a file or database write. Finish the
+  work before answering and return `200` with an `id`. Give the whole chain one
+  shared deadline (`AbortSignal.timeout`) so a slow upstream cannot push you past
+  the 10 second mark.
 
-What does *not* work is the middle ground: firing the work off and returning
-immediately without a continuation primitive.
+What does *not* work is returning immediately after starting an un-awaited task
+without registering it with a continuation primitive or durably enqueueing it.
 
 One more platform detail, same family of problem: **read the raw body
 yourself.** Several runtimes parse the request body for you, and a body that has
