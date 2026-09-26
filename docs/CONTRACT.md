@@ -7,10 +7,16 @@ of work in any language.
 
 | Event | When | What to do |
 |---|---|---|
+| `webhook.test` | "Test connection" was clicked in Visibly | Answer `200`; nothing to fetch |
 | `article.approved` | An article was approved | Create the post |
 | `article.updated` | An already published article changed | Overwrite the existing post |
 | `article.published` | A publication was confirmed | Usually nothing |
 | `article.failed` | Generation failed | Log it |
+
+`webhook.test` is the first event any integrator ever receives, and it carries
+**no `article_id`**. Handle it before any code path that needs one, and answer
+it deliberately: a generic "unknown event" reply reads as *accepted but nothing
+happened*, which is indistinguishable from a broken connector.
 
 The payload:
 
@@ -92,6 +98,48 @@ Sending again would trigger the same work a second time.
 **A failure inside your handler is not a `5xx`.** The delivery worked, the work
 did not. A `5xx` invites a retry that reproduces the same error. Log it and
 return `202`.
+
+### Serverless: where "answer first, work later" needs help
+
+The pattern above assumes a process that outlives the response. In serverless
+runtimes such as Vercel Functions, Netlify Functions and Cloudflare Workers, the
+execution context may be reclaimed after the response. An un-awaited promise or
+a daemon thread does not guarantee that work will finish. The sender may see
+`202` while the article is never stored and **nothing is logged**.
+
+Choose the execution model based on the work and the platform's limits:
+
+- **Use the platform's continuation primitive for bounded work.** `waitUntil`
+  (Vercel via `@vercel/functions`, Cloudflare via `ExecutionContext`) can keep
+  work running after the response, but only within the function's execution
+  limits. For example, Cloudflare Workers allow up to 30 seconds after the
+  invocation ends; Vercel work is bounded by the function's `maxDuration`. This
+  is suitable for short deferred tasks, not a durable queue.
+- **Use a durable queue for work that may exceed those limits or must complete.**
+  Enqueue the job durably before acknowledging it, then process it in a separate
+  worker with retries and idempotency. This is the right fit for slow
+  translations, image generation or other long-running LLM work.
+- **Do the work inside the request** when fetching, storing and confirming take
+  only a few seconds - the normal case for a file or database write. Finish the
+  work before answering and return `200` with an `id`. Give the whole chain one
+  shared deadline (`AbortSignal.timeout`) so a slow upstream cannot push you past
+  the 10 second mark.
+
+What does *not* work is returning immediately after starting an un-awaited task
+without registering it with a continuation primitive or durably enqueueing it.
+
+One more platform detail, same family of problem: **read the raw body
+yourself.** Several runtimes parse the request body for you, and a body that has
+been through `JSON.parse` and `JSON.stringify` no longer matches its own
+signature. On Vercel's Node runtime that rules out the `(req, res)` handler in
+favour of the Web signature, where `await request.text()` returns the bytes as
+sent:
+
+```js
+export async function POST(request) {
+  const raw = await request.text();   // exact bytes, safe to HMAC
+}
+```
 
 ## Pull API
 

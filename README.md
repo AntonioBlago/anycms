@@ -157,9 +157,9 @@ Visibly: article approved
 
 **Step 2 is the one everybody gets wrong.** Visibly waits 10 seconds for your
 response and does **not** retry when it times out, because the request already
-reached you. Answer only after the article is written and you get delivered to
-repeatedly, doing the same work every time. For a CMS that translates incoming
-articles, that is the same bill several times over.
+reached you. If you answer only after the article is written, you get delivered
+to repeatedly, doing the same work every time. For a CMS that translates
+incoming articles, that is the same bill several times over.
 
 This is not hypothetical. Measured in production on 2026-09-14: three delivery
 attempts for one article turned into three LLM translation runs. Every
@@ -185,6 +185,9 @@ your own, keep everything else:
   Node runtime is required; Edge cannot write files.
 - **Python:** `pip install ai-content-autopilot`, register the blueprint. See
   [`apps/flask/app.py`](apps/flask/app.py).
+- **Agent-assisted setup on any host:** follow
+  [`docs/AGENT_CONNECTOR_SETUP.md`](docs/AGENT_CONNECTOR_SETUP.md) for a
+  provider-aware install, from storage choice through production checks.
 - **Anything else:** [`docs/CONTRACT.md`](docs/CONTRACT.md) describes the whole
   protocol, with pseudocode for a minimal implementation.
 
