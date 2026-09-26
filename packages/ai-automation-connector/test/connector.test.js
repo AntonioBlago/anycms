@@ -72,6 +72,24 @@ test('kaputtes JSON ergibt 400', async () => {
   assert.equal(res.status, 400);
 });
 
+test('webhook.test wird als Erfolg beantwortet, nicht als ignoriert', async () => {
+  const koerper = JSON.stringify({ event: 'webhook.test' });
+  let geholt = false;
+  const res = await handleWebhook(
+    koerper,
+    signiere(koerper),
+    opts(async () => {
+      geholt = true;
+      return null;
+    }),
+  );
+  // Ein Testereignis hat keinen Artikel. "ignored" laese Visibly als
+  // "angenommen, aber nichts passiert" - also als Fehlschlag.
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'ok');
+  assert.equal(geholt, false);
+});
+
 test('unbekanntes Ereignis wird freundlich quittiert', async () => {
   const koerper = JSON.stringify({ event: 'article.failed', article_id: 11 });
   const res = await handleWebhook(koerper, signiere(koerper), opts(async () => null));

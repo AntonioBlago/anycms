@@ -218,6 +218,14 @@ export async function handleWebhook(
   }
 
   const { event, article_id: articleId } = payload;
+
+  // "Verbindung testen" in Visibly: kein Artikel dahinter, nichts abzuholen.
+  // Ausdruecklich beantworten statt unter "ignored" laufen zu lassen - das
+  // liest sich sonst wie "angenommen, aber nichts passiert".
+  if (event === 'webhook.test') {
+    return { status: 200, body: { status: 'ok', event } };
+  }
+
   if (!articleId || !['article.approved', 'article.updated', 'article.published'].includes(event)) {
     // Unbekannte Ereignisse werden freundlich quittiert: ein Fehler würde den
     // Sender zu Wiederholungen verleiten, die nie etwas ändern.
