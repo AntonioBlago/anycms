@@ -17,7 +17,7 @@
 
 declare(strict_types=1);
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH') && !defined('AIAC_PURE_TEST')) {
     exit; // Direkter Aufruf: nichts zu sehen.
 }
 
@@ -40,15 +40,17 @@ function aiac_option(string $name, string $konstante, string $default = ''): str
 // Webhook-Route
 // ─────────────────────────────────────────────────────────────────────────────
 
-add_action('rest_api_init', static function (): void {
-    register_rest_route(AIAC_NAMESPACE, '/webhook', [
-        'methods'             => 'POST',
-        'callback'            => 'aiac_handle_webhook',
-        // Der Webhook authentifiziert sich über die HMAC-Signatur, nicht über
-        // eine WordPress-Anmeldung. Die Prüfung erfolgt im Handler.
-        'permission_callback' => '__return_true',
-    ]);
-});
+if (!defined('AIAC_PURE_TEST')) {
+    add_action('rest_api_init', static function (): void {
+        register_rest_route(AIAC_NAMESPACE, '/webhook', [
+            'methods'             => 'POST',
+            'callback'            => 'aiac_handle_webhook',
+            // Der Webhook authentifiziert sich über die HMAC-Signatur, nicht über
+            // eine WordPress-Anmeldung. Die Prüfung erfolgt im Handler.
+            'permission_callback' => '__return_true',
+        ]);
+    });
+}
 
 /**
  * Nimmt den Webhook entgegen, prüft die Signatur und quittiert sofort.
@@ -174,7 +176,9 @@ function aiac_release_claim(string $name, string $token): void
     ));
     wp_cache_delete($name, 'options');
 }
-add_action('aiac_release_claim', 'aiac_release_claim', 10, 2);
+if (!defined('AIAC_PURE_TEST')) {
+    add_action('aiac_release_claim', 'aiac_release_claim', 10, 2);
+}
 
 function aiac_schedule(int $when, string $hook, array $args): bool
 {
@@ -236,7 +240,9 @@ function aiac_verify_signature(string $payload, string $secret, string $header):
 // Verarbeitung (Hintergrund)
 // ─────────────────────────────────────────────────────────────────────────────
 
-add_action('aiac_process_article', 'aiac_process_article', 10, 2);
+if (!defined('AIAC_PURE_TEST')) {
+    add_action('aiac_process_article', 'aiac_process_article', 10, 2);
+}
 
 /**
  * Artikel holen, als Beitrag schreiben, URL zurückmelden.
@@ -265,6 +271,7 @@ function aiac_process_article(int $article_id, array $payload = []): void
             aiac_retry($article_id, $payload);
             return;
         }
+        aiac_import_media($post_id, $artikel);
         aiac_confirm_post($post_id);
     } catch (Throwable $error) {
         error_log("[aiac] Import {$article_id} fehlgeschlagen");
@@ -387,6 +394,67 @@ function aiac_upsert_post(array $artikel): int
     return $post_id;
 }
 
+/** Bild-URLs im HTML ersetzen (alte URL => neue URL). Reine Funktion. */
+function aiac_rewrite_image_urls(string $html, array $map): string
+{
+    return $map ? strtr($html, $map) : $html;
+}
+
+/**
+ * Beitragsbild und Inline-Bilder der Visibly-Anreicherung in die Mediathek laden.
+ * Idempotent ueber die Meta `_aiac_media_url`; ein fehlendes Bild blockiert nie.
+ */
+function aiac_import_media(int $post_id, array $artikel): void
+{
+    $bilder = [];
+    if (!empty($artikel['featured_image']['url']) && is_string($artikel['featured_image']['url'])) {
+        $bilder[] = ['url' => $artikel['featured_image']['url'], 'alt' => (string) ($artikel['featured_image']['alt'] ?? ''), 'featured' => true];
+    }
+    foreach (($artikel['images'] ?? []) as $b) {
+        if (is_array($b) && !empty($b['url']) && is_string($b['url'])) {
+            $bilder[] = ['url' => $b['url'], 'alt' => (string) ($b['alt'] ?? ''), 'featured' => false];
+        }
+    }
+    if (!$bilder) {
+        return;
+    }
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    $map = [];
+    foreach ($bilder as $b) {
+        try {
+            $vorhanden = get_posts(['post_type' => 'attachment', 'post_status' => 'any', 'meta_key' => '_aiac_media_url',
+                                    'meta_value' => $b['url'], 'posts_per_page' => 1, 'fields' => 'ids']);
+            $att_id = $vorhanden ? (int) $vorhanden[0] : media_sideload_image($b['url'], $post_id, $b['alt'], 'id');
+            if (is_wp_error($att_id) || !$att_id) {
+                continue; // ein fehlendes Bild blockiert den Beitrag nie
+            }
+            update_post_meta($att_id, '_aiac_media_url', $b['url']);
+            update_post_meta($att_id, '_wp_attachment_image_alt', sanitize_text_field($b['alt']));
+            if ($b['featured']) {
+                set_post_thumbnail($post_id, $att_id);
+            } else {
+                $neu = wp_get_attachment_url($att_id);
+                if (is_string($neu) && $neu !== '') {
+                    $map[$b['url']] = $neu;
+                }
+            }
+        } catch (Throwable $error) {
+            error_log('[aiac] Bild konnte nicht uebernommen werden');
+        }
+    }
+    if ($map) {
+        $post = get_post($post_id);
+        if ($post instanceof WP_Post) {
+            $neu_inhalt = aiac_rewrite_image_urls($post->post_content, $map);
+            if ($neu_inhalt !== $post->post_content) {
+                wp_update_post(wp_slash(['ID' => $post_id, 'post_content' => $neu_inhalt]));
+            }
+        }
+    }
+}
+
 /** Ausschließlich bereits zugeordnete Beiträge finden, auch im Papierkorb. */
 function aiac_find_post(int $article_id): int
 {
@@ -402,13 +470,17 @@ function aiac_find_post(int $article_id): int
 }
 
 /** Auch eine spätere manuelle Freigabe melden, ohne den Editor zu blockieren. */
-add_action('transition_post_status', static function (string $new, string $old, WP_Post $post): void {
-    if ($new === 'publish' && $old !== 'publish' && $post->post_type === 'post'
-        && (int) get_post_meta($post->ID, '_aiac_article_id', true) > 0) {
-        aiac_schedule(time(), 'aiac_confirm_post', [$post->ID, 0]);
-    }
-}, 10, 3);
-add_action('aiac_confirm_post', 'aiac_confirm_post', 10, 2);
+if (!defined('AIAC_PURE_TEST')) {
+    add_action('transition_post_status', static function (string $new, string $old, WP_Post $post): void {
+        if ($new === 'publish' && $old !== 'publish' && $post->post_type === 'post'
+            && (int) get_post_meta($post->ID, '_aiac_article_id', true) > 0) {
+            aiac_schedule(time(), 'aiac_confirm_post', [$post->ID, 0]);
+        }
+    }, 10, 3);
+}
+if (!defined('AIAC_PURE_TEST')) {
+    add_action('aiac_confirm_post', 'aiac_confirm_post', 10, 2);
+}
 
 function aiac_confirm_post(int $post_id, int $attempt = 0): void
 {
@@ -491,22 +563,24 @@ function aiac_confirm_published(int $article_id, string $url): bool
 // Einstellungsseite
 // ─────────────────────────────────────────────────────────────────────────────
 
-add_action('admin_menu', static function (): void {
-    add_options_page(
-        'AI Automation Connector',
-        'AI Automation',
-        'manage_options',
-        'ai-automation-connector',
-        'aiac_settings_page'
-    );
-});
+if (!defined('AIAC_PURE_TEST')) {
+    add_action('admin_menu', static function (): void {
+        add_options_page(
+            'AI Automation Connector',
+            'AI Automation',
+            'manage_options',
+            'ai-automation-connector',
+            'aiac_settings_page'
+        );
+    });
 
-add_action('admin_init', static function (): void {
-    register_setting(AIAC_OPTION_GROUP, 'aiac_webhook_secret', ['sanitize_callback' => 'sanitize_text_field']);
-    register_setting(AIAC_OPTION_GROUP, 'aiac_api_key', ['sanitize_callback' => 'sanitize_text_field']);
-    register_setting(AIAC_OPTION_GROUP, 'aiac_base_url', ['sanitize_callback' => 'aiac_sanitize_base_url']);
-    register_setting(AIAC_OPTION_GROUP, 'aiac_post_status', ['sanitize_callback' => 'sanitize_text_field']);
-});
+    add_action('admin_init', static function (): void {
+        register_setting(AIAC_OPTION_GROUP, 'aiac_webhook_secret', ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting(AIAC_OPTION_GROUP, 'aiac_api_key', ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting(AIAC_OPTION_GROUP, 'aiac_base_url', ['sanitize_callback' => 'aiac_sanitize_base_url']);
+        register_setting(AIAC_OPTION_GROUP, 'aiac_post_status', ['sanitize_callback' => 'sanitize_text_field']);
+    });
+}
 
 function aiac_settings_page(): void
 {

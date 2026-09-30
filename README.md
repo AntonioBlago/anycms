@@ -55,7 +55,7 @@ A Visibly account on the **Standard plan or higher**. The connector pulls
 articles that the Content Autopilot writes, and the Autopilot (including the
 CMS connection and the project API key) is not part of the Free plan. The
 project-scoped `cp_…` key needs Standard or higher; the account-wide `lc_…`
-key needs Pro or higher, because it can reach every project on the account.
+key needs Standard or higher and can reach every project on the account.
 
 [Register](https://app.visibly-ai.com/register) or
 [sign in](https://app.visibly-ai.com/login), pick a plan under
@@ -75,7 +75,7 @@ the card **CMS access** (*CMS-Zugänge*).
    is shown exactly once. It only sees this project, which is what a connector
    should get. (An account-wide `lc_` key from
    [Settings > API key & MCP](https://app.visibly-ai.com/settings#api-key)
-   works too, but it sees every project and needs the Pro plan.)
+   works too, but it sees every project and needs Standard or higher.)
 2. Under **Add new access** (*Neuen Zugang hinterlegen*) create the
    connection:
    - **CMS type** (*CMS-Typ*): `Webhook (Pull-CMS)`
@@ -272,6 +272,16 @@ the first, an article delivered at runtime would only appear after the next
 deploy.
 
 ---
+
+## Images
+
+If the **WordPress-Anreicherung** module is active in Visibly, the WordPress
+plugin loads the featured image and the inline images of an article into the
+media library, sets the featured image and rewrites the image URLs in the post
+content to the media library copies. Every image is remembered by its source
+URL (`_aiac_media_url`), so a later update never downloads it twice. An image
+that fails to download is skipped and never blocks the post. Without the
+module nothing changes.
 
 ## Multilingual and hreflang
 
